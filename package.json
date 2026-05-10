@@ -1,5 +1,6 @@
 {
   "name": "fusionhub-marketplace",
+  "version": "1.0.0",
   "private": true,
   "description": "Run API + Vite client together (fixes /api proxy to :5001)",
   "scripts": {
