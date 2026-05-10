@@ -1,0 +1,12 @@
+{
+  "name": "fusionhub-marketplace",
+  "private": true,
+  "description": "Run API + Vite client together (fixes /api proxy to :5001)",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "seed": "npm run seed --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
