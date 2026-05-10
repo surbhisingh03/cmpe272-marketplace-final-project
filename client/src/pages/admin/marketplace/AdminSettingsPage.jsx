@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../../../context/AuthContext.jsx";
 
 export default function AdminSettingsPage() {
-  function logout() {
-    localStorage.removeItem("fh_admin_token");
-    window.location.href = "/admin/login";
+  const { logout } = useAuth();
+  function onLogout() {
+    logout();
+    window.location.href = "/login";
   }
 
   return (
@@ -17,7 +19,7 @@ export default function AdminSettingsPage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={logout}
+            onClick={onLogout}
             className="rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95"
           >
             Sign out admin

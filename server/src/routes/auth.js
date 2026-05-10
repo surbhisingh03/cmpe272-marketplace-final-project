@@ -118,8 +118,9 @@ router.post("/register", async (req, res, next) => {
           }
           throw e2;
         }
+        const role = accountType === "admin" ? "admin" : "customer";
         const token = jwt.sign(
-          { sub: id, email, role: "customer" },
+          { sub: id, email, role },
           process.env.JWT_SECRET || "dev-secret",
           { expiresIn: process.env.JWT_EXPIRES || "7d" }
         );
@@ -127,14 +128,24 @@ router.post("/register", async (req, res, next) => {
           token,
           message:
             "Account created successfully. Run server/scripts/migrate-users-profile.sql to store phone and preferences in the database.",
-          user: { id, email, displayName, phone, preferredInterest, accountType },
+          user: {
+            id,
+            email,
+            name: displayName,
+            displayName,
+            phone,
+            preferredInterest,
+            accountType,
+            role,
+          },
         });
       }
       throw e;
     }
 
+    const role = accountType === "admin" ? "admin" : "customer";
     const token = jwt.sign(
-      { sub: id, email, role: accountType },
+      { sub: id, email, role },
       process.env.JWT_SECRET || "dev-secret",
       { expiresIn: process.env.JWT_EXPIRES || "7d" }
     );
@@ -145,10 +156,12 @@ router.post("/register", async (req, res, next) => {
       user: {
         id,
         email,
+        name: displayName,
         displayName,
         phone,
         preferredInterest,
         accountType,
+        role,
       },
     });
   } catch (err) {
@@ -181,8 +194,10 @@ router.post("/login", async (req, res) => {
   if (!user || !(await bcrypt.compare(String(password), user.password_hash))) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
+  const accountType = user.accountType ?? "customer";
+  const role = accountType === "admin" ? "admin" : "customer";
   const token = jwt.sign(
-    { sub: user.id, email: user.email },
+    { sub: user.id, email: user.email, role },
     process.env.JWT_SECRET || "dev-secret",
     { expiresIn: process.env.JWT_EXPIRES || "7d" }
   );
@@ -191,10 +206,12 @@ router.post("/login", async (req, res) => {
     user: {
       id: user.id,
       email: user.email,
+      name: user.display_name,
       displayName: user.display_name,
       avatarUrl: user.avatar_url,
       preferredInterest: user.preferredInterest ?? null,
-      accountType: user.accountType ?? null,
+      accountType,
+      role,
     },
   });
 });
@@ -217,7 +234,15 @@ router.get("/me", requireAuth, async (req, res) => {
     );
   }
   if (!rows.length) return res.status(404).json({ error: "User not found" });
-  res.json(rows[0]);
+  const row = rows[0];
+  const accountType = row.accountType ?? "customer";
+  const role = accountType === "admin" ? "admin" : "customer";
+  res.json({
+    ...row,
+    name: row.displayName,
+    accountType,
+    role,
+  });
 });
 
 export default router;

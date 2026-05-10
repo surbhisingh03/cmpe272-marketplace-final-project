@@ -27,7 +27,12 @@ function writeCachedUser(u) {
 function normalizeUser(u) {
   if (!u || typeof u !== "object") return null;
   const id = u.id != null ? u.id : null;
-  return { ...u, id };
+  const role =
+    u.role ??
+    (u.accountType === "admin" ? "admin" : u.accountType === "customer" ? "customer" : undefined);
+  const displayName = u.displayName ?? u.name ?? "";
+  const name = u.name ?? u.displayName ?? displayName;
+  return { ...u, id, role, name, displayName };
 }
 
 export function AuthProvider({ children }) {

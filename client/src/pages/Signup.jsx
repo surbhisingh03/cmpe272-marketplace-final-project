@@ -105,12 +105,15 @@ export default function Signup() {
         }),
       });
 
+      const role = res.user.role ?? (res.user.accountType === "admin" ? "admin" : "customer");
       loginWithToken(res.token, {
         id: res.user.id,
         email: res.user.email,
-        displayName: res.user.displayName,
+        name: res.user.name ?? res.user.displayName,
+        displayName: res.user.displayName ?? res.user.name,
         preferredInterest: res.user.preferredInterest,
         accountType: res.user.accountType,
+        role,
       });
       setStep("success");
     } catch (err) {

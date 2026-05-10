@@ -9,12 +9,7 @@ export async function apiFetch(path, options = {}) {
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  let token =
-    typeof window !== "undefined"
-      ? options.admin
-        ? localStorage.getItem("fh_admin_token")
-        : localStorage.getItem("fh_token")
-      : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("fh_token") : null;
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }

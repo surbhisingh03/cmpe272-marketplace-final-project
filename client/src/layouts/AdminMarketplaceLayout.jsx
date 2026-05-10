@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "../context/AuthContext.jsx";
 import {
   FiActivity,
   FiAward,
@@ -29,19 +30,6 @@ const NAV = [
   { to: "/admin/settings", label: "Settings", icon: FiSettings },
 ];
 
-function adminJwtEmail() {
-  try {
-    const t = typeof window !== "undefined" ? localStorage.getItem("fh_admin_token") : null;
-    if (!t) return null;
-    const body = t.split(".")[1];
-    if (!body) return null;
-    const json = JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
-    return json.email || null;
-  } catch {
-    return null;
-  }
-}
-
 function navClass({ isActive }) {
   if (isActive) {
     return [
@@ -58,11 +46,12 @@ function navClass({ isActive }) {
 export default function AdminMarketplaceLayout() {
   const [drawer, setDrawer] = useState(false);
   const location = useLocation();
-  const email = useMemo(() => adminJwtEmail(), [location.pathname]);
+  const { user, logout } = useAuth();
+  const email = useMemo(() => user?.email ?? "", [user?.email, location.pathname]);
 
-  function logout() {
-    localStorage.removeItem("fh_admin_token");
-    window.location.href = "/admin/login";
+  function onLogout() {
+    logout();
+    window.location.href = "/login";
   }
 
   return (
@@ -159,7 +148,7 @@ export default function AdminMarketplaceLayout() {
               </span>
               <button
                 type="button"
-                onClick={logout}
+                onClick={onLogout}
                 className="rounded-xl border border-[#e2e8f0] bg-white px-3 py-1.5 text-xs font-bold text-[#64748b] shadow-sm transition hover:border-red-200 hover:text-red-700"
               >
                 Sign out

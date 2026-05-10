@@ -149,7 +149,7 @@ export default function AdminMarketplaceHome() {
       setCatalog([]);
     }
     try {
-      const o = await apiFetch("/api/admin/overview", { admin: true });
+      const o = await apiFetch("/api/admin/overview");
       setOverview(o);
       setOverviewErr(false);
     } catch {

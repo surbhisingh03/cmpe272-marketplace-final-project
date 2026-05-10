@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiArrowRight, FiCheckCircle, FiGrid, FiLock, FiMail } from "react-icons/fi";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
@@ -38,7 +38,7 @@ const PARTNERS = [
 
 export default function Login() {
   const { loginWithToken } = useAuth();
-  const [step, setStep] = useState("form");
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,16 +86,23 @@ export default function Login() {
       method: "POST",
       body: JSON.stringify({ email: emailUsed, password: pw }),
     });
+    const role = res.user.role ?? (res.user.accountType === "admin" ? "admin" : "customer");
     loginWithToken(res.token, {
       id: res.user.id,
       email: res.user.email,
-      displayName: res.user.displayName,
+      name: res.user.name ?? res.user.displayName,
+      displayName: res.user.displayName ?? res.user.name,
       avatarUrl: res.user.avatarUrl,
       preferredInterest: res.user.preferredInterest,
       accountType: res.user.accountType,
+      role,
     });
     applyRememberPreference(emailUsed);
-    setStep("success");
+    if (role === "admin") {
+      navigate("/admin", { replace: true });
+    } else {
+      navigate("/marketplace/explore", { replace: true });
+    }
   }
 
   async function onSubmit(e) {
@@ -159,8 +166,7 @@ export default function Login() {
         />
 
         <div className="relative mx-auto max-w-7xl px-4 py-6 md:py-8 lg:px-8 lg:pb-12 lg:pt-8">
-          {step === "form" ? (
-            <motion.div
+          <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45 }}
@@ -350,46 +356,6 @@ export default function Login() {
                 </motion.div>
               </div>
             </motion.div>
-          ) : (
-            <motion.div
-              role="status"
-              aria-live="polite"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mx-auto w-full max-w-[520px] py-4"
-            >
-              <div className="rounded-[28px] border border-slate-200/90 bg-white p-9 text-center shadow-[0_28px_80px_-34px_rgba(15,23,42,0.2)] md:p-10">
-                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] shadow-lg shadow-[#7C3AED]/25">
-                  <FiCheckCircle className="h-8 w-8 text-white md:h-9 md:w-9" aria-hidden />
-                </div>
-                <p className="font-display text-lg font-bold leading-snug text-[#111827]">
-                  Signed in successfully!
-                </p>
-                <p className="mt-3 text-base font-semibold leading-snug text-[#374151]">
-                  Welcome back to FusionHub Marketplace.
-                </p>
-                <div className="mx-auto mt-8 flex flex-col gap-3 sm:flex-row">
-                  <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                    <Link
-                      to="/dashboard/home"
-                      className="flex min-h-[48px] w-full items-center justify-center rounded-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] px-8 text-sm font-semibold text-white shadow-[0_12px_32px_-10px_rgba(124,58,237,0.45)]"
-                    >
-                      Go to Dashboard
-                      <FiArrowRight className="ml-2" aria-hidden />
-                    </Link>
-                  </motion.div>
-                  <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                    <Link
-                      to="/marketplace/explore"
-                      className="flex min-h-[48px] w-full items-center justify-center rounded-full border border-slate-200 bg-white px-8 text-sm font-semibold text-[#111827] shadow-md transition hover:bg-slate-50 hover:shadow-lg"
-                    >
-                      Explore Marketplace
-                    </Link>
-                  </motion.div>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
       </div>
 

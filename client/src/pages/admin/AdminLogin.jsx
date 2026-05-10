@@ -1,27 +1,51 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import GradientMesh from "../../components/layout/GradientMesh.jsx";
 import GlassCard from "../../components/ui/GlassCard.jsx";
 import { apiFetch } from "../../lib/api.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 export default function AdminLogin() {
   const nav = useNavigate();
+  const { user, loading, loginWithToken } = useAuth();
   const [email, setEmail] = useState("admin@fusionhub.demo");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    const role = user?.role ?? (user?.accountType === "admin" ? "admin" : undefined);
+    if (role === "admin") {
+      nav("/admin", { replace: true });
+    }
+  }, [loading, user, nav]);
 
   async function onSubmit(e) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const res = await apiFetch("/api/admin/login", {
+      const res = await apiFetch("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      localStorage.setItem("fh_admin_token", res.token);
+      const role = res.user.role ?? (res.user.accountType === "admin" ? "admin" : "customer");
+      if (role !== "admin") {
+        setError("This account is not an administrator. Sign in at the main marketplace login.");
+        return;
+      }
+      loginWithToken(res.token, {
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.name ?? res.user.displayName,
+        displayName: res.user.displayName ?? res.user.name,
+        avatarUrl: res.user.avatarUrl,
+        preferredInterest: res.user.preferredInterest,
+        accountType: res.user.accountType,
+        role,
+      });
       nav("/admin", { replace: true });
     } catch (err) {
       setError(err.payload?.error || err.message || "Admin login failed");
@@ -39,19 +63,13 @@ export default function AdminLogin() {
             <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Observatory</div>
             <h1 className="mt-2 font-display text-2xl font-bold text-white">Admin authentication</h1>
             <p className="mt-2 text-sm text-slate-400">
-              This is <span className="font-semibold text-slate-200">not</span> the same as{" "}
+              Admin accounts use the same FusionHub credentials as{" "}
               <Link to="/login" className="text-hub-cyan underline">
-                regular Sign in
+                marketplace Sign in
               </Link>
-              . Signing up or logging in on the marketplace only opens <code className="text-hub-cyan">/dashboard</code> (dark
-              theme). The light admin console at <code className="text-hub-cyan">/admin</code> uses this page only, with the
-              exact <span className="text-slate-200">ADMIN_EMAIL</span> and <span className="text-slate-200">ADMIN_PASSWORD</span>{" "}
-              from <code className="text-hub-cyan">server/.env</code> (your signup password is ignored here unless you set{" "}
-              <code className="text-hub-cyan">ADMIN_PASSWORD</code> to match it).
-            </p>
-            <p className="mt-2 text-sm text-slate-400">
-              After <code className="text-hub-cyan">npm run seed</code>, defaults from <code className="text-hub-cyan">.env.example</code>{" "}
-              are often <span className="text-white">admin@fusionhub.demo</span> / <span className="text-white">fusionhub123</span>.
+              . After <code className="text-hub-cyan">npm run seed</code>, the demo admin is{" "}
+              <span className="text-white">admin@fusionhub.demo</span> /{" "}
+              <span className="text-white">fusionhub123</span>.
             </p>
             <form onSubmit={onSubmit} className="mt-6 space-y-4">
               <div>

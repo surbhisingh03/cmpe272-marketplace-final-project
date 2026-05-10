@@ -9,7 +9,7 @@ export default function AdminUsersPage() {
 
   const load = useCallback(async () => {
     try {
-      const o = await apiFetch("/api/admin/overview", { admin: true });
+      const o = await apiFetch("/api/admin/overview");
       setDbUsers(o?.counts?.users ?? 0);
     } catch {
       setDbUsers(null);

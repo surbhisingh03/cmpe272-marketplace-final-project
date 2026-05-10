@@ -27,29 +27,34 @@ async function ensureAdminUserRow(pool, emailLower, plainPassword) {
 }
 
 async function ensureAdmin(req, res, next) {
-  const adminEmail = process.env.ADMIN_EMAIL;
-  const adminPass = process.env.ADMIN_PASSWORD;
-  if (!adminEmail || !adminPass) {
-    if (process.env.NODE_ENV === "production") {
-      return res.status(503).json({ error: "Admin not configured" });
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-    console.warn(
-      "[FusionHub] ADMIN_EMAIL/ADMIN_PASSWORD unset — allowing any signed-in user for admin API (dev only)"
-    );
-    return next();
-  }
-  const pool = getPool();
-  const [users] = await pool.query(
-    "SELECT id, email FROM users WHERE email = :e LIMIT 1",
-    { e: adminEmail.toLowerCase() }
-  );
-  if (!users.length) {
-    await ensureAdminUserRow(pool, adminEmail.toLowerCase(), adminPass);
-  }
-  if (req.user?.email?.toLowerCase() !== adminEmail.toLowerCase()) {
+    if (req.user.role === "admin") {
+      return next();
+    }
+    const pool = getPool();
+    try {
+      const [rows] = await pool.query(
+        "SELECT account_type AS accountType FROM users WHERE id = :id LIMIT 1",
+        { id: req.user.id }
+      );
+      if (rows[0]?.accountType === "admin") {
+        return next();
+      }
+    } catch {
+      /* minimal schema: no account_type column */
+    }
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPass = process.env.ADMIN_PASSWORD;
+    if (adminEmail && adminPass && req.user?.email?.toLowerCase() === adminEmail.toLowerCase()) {
+      return next();
+    }
     return res.status(403).json({ error: "Admin only" });
+  } catch (err) {
+    next(err);
   }
-  next();
 }
 
 router.post("/login", async (req, res) => {
@@ -80,7 +85,15 @@ router.post("/login", async (req, res) => {
     process.env.JWT_SECRET || "dev-secret",
     { expiresIn: process.env.JWT_EXPIRES || "7d" }
   );
-  res.json({ token, user: { id: user.id, email: user.email } });
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: "FusionHub Admin",
+      role: "admin",
+    },
+  });
 });
 
 router.get("/overview", requireAuth, ensureAdmin, async (req, res) => {
