@@ -38,12 +38,12 @@ app.use((err, req, res, next) => {
   const code = err?.code;
   if (code === "ECONNREFUSED" || code === "ENOTFOUND") {
     return res.status(503).json({
-      error: "Database is unreachable. Start MySQL and check MYSQL_HOST / MYSQL_PORT in .env.",
+      error: "Database is unreachable. Check DATABASE_URL in server/.env (Supabase Postgres connection string).",
     });
   }
-  if (code === "ER_ACCESS_DENIED_ERROR" || code === "ER_DBACCESS_DENIED_ERROR") {
+  if (code === "28P01" || code === "ER_ACCESS_DENIED_ERROR" || code === "ER_DBACCESS_DENIED_ERROR") {
     return res.status(503).json({
-      error: "MySQL credentials failed. Check MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE in .env.",
+      error: "Database credentials failed. Check the password in DATABASE_URL (server/.env).",
     });
   }
   res.status(500).json({ error: "Internal server error" });
