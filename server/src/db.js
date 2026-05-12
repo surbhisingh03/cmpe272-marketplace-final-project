@@ -35,6 +35,16 @@ function rewriteMysqlisms(sql) {
   out = out.replace(/\bCURDATE\s*\(\s*\)/gi, "CURRENT_DATE");
   out = out.replace(/\bINTERVAL\s+(\d+)\s+DAY\b/gi, "INTERVAL '$1 day'");
 
+  /* MySQL preserves case in unquoted column aliases (e.g. `AS heroImage`),
+     but Postgres folds unquoted identifiers to lowercase. The existing
+     routes return JSON with camelCase keys (heroImage, visitCount, …) and
+     the React client reads those keys verbatim. Auto-quote any AS alias
+     that contains an uppercase letter so column-case round-trips intact. */
+  out = out.replace(
+    /\b(AS)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    (match, as, ident) => (/[A-Z]/.test(ident) ? `${as} "${ident}"` : match)
+  );
+
   if (/\bINSERT\s+IGNORE\s+INTO\b/i.test(out)) {
     out = out.replace(/\bINSERT\s+IGNORE\s+INTO\b/i, "INSERT INTO");
     isInsertIgnore = true;
