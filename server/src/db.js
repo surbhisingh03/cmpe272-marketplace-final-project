@@ -1,5 +1,24 @@
-import mysql from "mysql2/promise";
+/**
+ * Database access for FusionHub.
+ *
+ * Connects to Supabase (or any PostgreSQL) using the `pg` driver, but exposes
+ * a small adapter on top so existing route code written for `mysql2/promise`
+ * keeps working without changes:
+ *
+ *  - `pool.query(sql, params)` still returns `[rows, fields]`
+ *  - Named placeholders `:name` and positional `?` are both supported
+ *  - `INSERT` statements automatically get `RETURNING id` appended, so the
+ *    caller can still do `const [r] = await pool.query(...); r.insertId`
+ *  - `INSERT IGNORE` is rewritten to `INSERT ... ON CONFLICT DO NOTHING`
+ *  - MySQL-only date helpers (CURDATE, INTERVAL N DAY) are rewritten
+ *  - Postgres unique/column errors are normalised to the MySQL codes
+ *    (`ER_DUP_ENTRY`, `ER_BAD_FIELD_ERROR`) that the existing code branches on
+ *  - camelCase `AS` aliases are auto-quoted so columns round-trip as
+ *    camelCase in JSON (Postgres would otherwise lowercase the keys)
+ */
+
 import dotenv from "dotenv";
+import pg from "pg";
 
 dotenv.config();
 
@@ -160,17 +179,15 @@ function buildPool() {
 }
 
 export function getPool() {
-  if (!pool) {
-    pool = mysql.createPool({
-      host: process.env.MYSQL_HOST || "127.0.0.1",
-      port: Number(process.env.MYSQL_PORT || 3306),
-      user: process.env.MYSQL_USER || "root",
-      password: process.env.MYSQL_PASSWORD ?? "",
-      database: process.env.MYSQL_DATABASE || "fusionhub",
-      waitForConnections: true,
-      connectionLimit: 10,
-      namedPlaceholders: true,
-    });
+  if (!adapter) {
+    adapter = new PgAdapter(buildPool());
   }
-  return pool;
+  return adapter;
+}
+
+export async function endPool() {
+  if (adapter) {
+    await adapter.end();
+    adapter = null;
+  }
 }

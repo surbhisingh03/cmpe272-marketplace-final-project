@@ -12,6 +12,7 @@ import {
   FiX,
 } from "react-icons/fi";
 import { LuCoffee, LuGraduationCap, LuPlane, LuSparkles } from "react-icons/lu";
+import LeaderboardListRow from "../components/marketplace/LeaderboardListRow.jsx";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
 import { apiFetch } from "../lib/api.js";
@@ -51,6 +52,67 @@ function hubMarketplaceFirstName(user) {
   const local = user.email?.split("@")[0]?.trim();
   return local ? local.charAt(0).toUpperCase() + local.slice(1).toLowerCase() : "";
 }
+
+function userActivityInitials(user) {
+  if (!user) return "?";
+  const raw = (user.displayName || user.name || "").trim();
+  if (raw) {
+    const parts = raw.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    if (parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[0][0]}`.toUpperCase();
+  }
+  const email = user.email?.split("@")[0] || "?";
+  return email.slice(0, 2).toUpperCase();
+}
+
+function activityDayStartMs(iso) {
+  const d = new Date(iso);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function activityDayLabel(iso) {
+  const sod = activityDayStartMs(iso);
+  const today = activityDayStartMs(new Date());
+  if (sod === today) return "Today";
+  if (sod === today - 86400000) return "Yesterday";
+  const d = new Date(iso);
+  const y = new Date().getFullYear();
+  if (d.getFullYear() === y) return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Group sorted visits so each calendar day gets one header + items */
+function groupJourneyItemsByDay(rows) {
+  const groups = [];
+  let lastKey = null;
+  for (const v of rows) {
+    const key = String(activityDayStartMs(v.timestamp));
+    const label = activityDayLabel(v.timestamp);
+    if (key !== lastKey) {
+      groups.push({ key, label, items: [] });
+      lastKey = key;
+    }
+    groups[groups.length - 1].items.push(v);
+  }
+  return groups;
+}
+
+const ACTIVITY_COMPANY_FILTERS = [
+  { slug: "all", label: "All" },
+  { slug: "nexus-academy", label: "Nexus Academy" },
+  { slug: "travel-agency", label: "Travel Agency" },
+  { slug: "srikavya-enterprise", label: "Kavya's Co." },
+  { slug: "krativerse", label: "Krativerse" },
+];
+
+const ACTIVITY_COMPANY_SWATCH = {
+  "nexus-academy": "#7c3aed",
+  "travel-agency": "#0891b2",
+  "srikavya-enterprise": "#d97706",
+  krativerse: "#db2777",
+};
 
 const SHELL = "mx-auto w-full max-w-[1320px] px-8";
 
@@ -196,36 +258,6 @@ function Media({ src, className }) {
   return <img src={src} alt="" className={className} loading="lazy" onError={() => setErr(true)} />;
 }
 
-/** Top 5 hero: catalog image only (no placeholder “fake” visit imagery). */
-function TopFiveHeroImg({ urls, className }) {
-  const cleaned = urls.filter(Boolean);
-  const fingerprint = cleaned.join("|");
-  const [i, setI] = useState(0);
-
-  useEffect(() => {
-    setI(0);
-  }, [fingerprint]);
-
-  if (!cleaned.length || i >= cleaned.length) {
-    return (
-      <div className={`bg-gradient-to-br from-slate-200 via-slate-100 to-violet-100/60 ${className}`} />
-    );
-  }
-
-  return (
-    <img
-      src={cleaned[i]}
-      alt=""
-      className={className}
-      loading="eager"
-      fetchPriority="high"
-      decoding="async"
-      referrerPolicy="no-referrer"
-      onError={() => setI((n) => n + 1)}
-    />
-  );
-}
-
 function StarInput({ value, onChange }) {
   return (
     <div className="flex gap-0.5" role="group" aria-label="Rating">
@@ -347,6 +379,7 @@ export default function ExploreMarketplace() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [co, setCo] = useState("all");
+  const [activityCompanyFilter, setActivityCompanyFilter] = useState("all");
   const [sort, setSort] = useState("popular");
 
   const [drawerId, setDrawerId] = useState(null);
@@ -459,10 +492,13 @@ export default function ExploreMarketplace() {
       title: row.name,
       companyLabel: displayCompanyName(row.companySlug),
       heroImage: row.heroImage,
+      category: row.category,
       ratingDisplay: row.reviewCount > 0 ? row.avgRating : 0,
       reviewsDisplay: row.reviewCount,
       visitsDisplay: row.visitCount,
       popularityScore: row.popularityScore ?? 0,
+      listingTo:
+        row.slug != null ? marketplaceListingPath(row.slug) : `/marketplace/products/${row.id}`,
     }));
   }, [itemsLive]);
 
@@ -517,6 +553,16 @@ export default function ExploreMarketplace() {
   );
 
   const continueJourneyHref = useMemo(() => lastVisitPath || "/marketplace/explore", [lastVisitPath]);
+
+  const filteredJourneyActivity = useMemo(() => {
+    const sorted = [...yourJourneyItems].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+    if (activityCompanyFilter === "all") return sorted;
+    const jid = apiCompanySlugToJourneyCompanyId(activityCompanyFilter);
+    if (jid == null) return sorted;
+    return sorted.filter((v) => String(v.companyId) === String(jid));
+  }, [yourJourneyItems, activityCompanyFilter]);
+
+  const journeyActivityGroups = useMemo(() => groupJourneyItemsByDay(filteredJourneyActivity), [filteredJourneyActivity]);
 
   const partnerCompaniesVisited = visitedJourneyCompanyIds.size;
   const partnerCompaniesRemaining = Math.max(0, PARTNERS.length - partnerCompaniesVisited);
@@ -640,15 +686,9 @@ export default function ExploreMarketplace() {
   const total = Math.max(Number(dist?.total || 0), 1);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#eaeef4] text-slate-900 antialiased">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute left-[min(12%,10rem)] top-[-18%] h-[min(52rem,130vw)] w-[min(52rem,130vw)] rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.20)_0%,transparent_62%)]" />
-        <div className="absolute right-[-8%] top-[26%] h-[min(42rem,100vw)] w-[min(42rem,100vw)] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.16)_0%,transparent_64%)]" />
-        <div className="absolute bottom-[-8%] left-[18%] h-[34rem] w-[42rem] rounded-full bg-[radial-gradient(circle,rgba(203,213,225,0.45)_0%,transparent_68%)]" />
-      </div>
-
+    <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
       <div className="relative z-10">
-      <MarketingNav />
+        <MarketingNav />
 
       {!allMode ? (
         <>
@@ -868,7 +908,7 @@ export default function ExploreMarketplace() {
           <section className="border-t border-slate-200/85 bg-white py-10 lg:py-11">
             <div className={SHELL}>
               <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">
-                Trending Globally: Marketplace Top 5
+                🏆 Top 5 Marketplace
               </h2>
               <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-slate-600">
                 Top listings based on visits, reviews, and ratings.
@@ -881,146 +921,169 @@ export default function ExploreMarketplace() {
                   Load the catalog to see top listings.
                 </p>
               ) : null}
-              <div className="mt-8 flex gap-4 overflow-x-auto pb-3 [scrollbar-width:thin] lg:grid lg:grid-cols-5 lg:items-stretch lg:gap-6 lg:overflow-visible lg:pb-0">
+              <div className="mt-8 max-w-3xl">
                 {hubTopFiveMerged.length === 0 ? (
-                  <p className="col-span-full rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-6 text-sm text-slate-600 lg:col-span-5">
+                  <p className="rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-6 text-sm text-slate-600">
                     No listings available to rank yet.
                   </p>
                 ) : (
-                  hubTopFiveMerged.map((row) => (
-                  <article
-                    key={row.slug}
-                    className={`group flex min-h-full min-w-[15.25rem] shrink-0 flex-col overflow-hidden rounded-3xl border bg-white shadow-[0_12px_40px_-28px_rgba(15,23,42,0.22)] transition duration-300 ease-out hover:z-[2] hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-300/35 lg:min-h-0 lg:min-w-0 ${
-                      row.rank === 1
-                        ? "z-[1] border-amber-300/85 shadow-[0_0_0_2px_rgba(251,191,36,0.35),0_12px_36px_-12px_rgba(245,158,11,0.28),0_20px_50px_-28px_rgba(15,23,42,0.2)] ring-[3px] ring-amber-400/65"
-                        : "border-slate-200/90 hover:border-slate-300/95"
-                    }`}
-                  >
-                    <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-slate-100 [&_img]:h-full [&_img]:w-full [&_img]:object-cover">
-                      <TopFiveHeroImg
-                        urls={[row.heroImage]}
-                        className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.05]"
-                      />
-                      {row.rank === 1 ? (
-                        <span className="absolute right-3 top-3 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white shadow-md ring-2 ring-white/90">
-                          #1 Most Popular
-                        </span>
-                      ) : null}
-                      <span className="pointer-events-none absolute left-3 top-3 flex min-h-[2.25rem] min-w-[2.25rem] items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] px-2 text-sm font-black tabular-nums text-white shadow-md ring-2 ring-white">
-                        #{row.rank}
-                      </span>
-                    </div>
-                    <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-5">
-                      <p className="text-[14px] font-bold leading-snug text-slate-900">{row.title}</p>
-                      <p className="mt-1 text-[13px] font-semibold text-violet-700">Company: {row.companyLabel}</p>
-                      <div className="mt-4 grid min-h-[4.75rem] flex-1 gap-1 content-start border-t border-slate-100 pt-4 text-[13px] text-slate-700">
-                        <p>
-                          Rating:{" "}
-                          <span className="font-bold text-amber-600 tabular-nums">
-                            {Number(row.reviewsDisplay || 0) > 0
-                              ? Number(row.ratingDisplay || 0).toFixed(1)
-                              : "No rating yet"}
-                          </span>
-                        </p>
-                        <p className="tabular-nums">Reviews: {Number(row.reviewsDisplay || 0).toLocaleString()}</p>
-                        <p className="tabular-nums">Visits: {Number(row.visitsDisplay || 0).toLocaleString()}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openListingOrStorefront(row)}
-                        className={`mt-4 inline-flex min-h-[46px] w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] text-[13px] font-bold text-white shadow-sm ${HUB_GRADIENT_HOVER}`}
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </article>
-                  ))
+                  <ul className="flex list-none flex-col gap-3 p-0">
+                    {hubTopFiveMerged.map((row) => (
+                      <li key={row.slug || row.id} className="list-none">
+                        <LeaderboardListRow
+                          rank={row.rank}
+                          title={row.title}
+                          subtitle={row.companyLabel}
+                          category={row.category}
+                          reviewCount={row.reviewsDisplay}
+                          avgRating={row.ratingDisplay}
+                          to={row.listingTo}
+                        />
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </div>
           </section>
 
-          {/* Recent activity (same user as My Visit History) */}
-          <section id="recent-activity" className="border-t border-white/85 bg-[#f4f6fb] py-10 lg:py-11 scroll-mt-[88px]">
-            <div className={SHELL}>
-              <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">Recent activity</h2>
-              <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-slate-600">
-                Stores and listings you opened recently while signed in. This is personal to you—not the global Top 5 above.
-              </p>
-              {!isAuthenticated ? (
-                <p className="mt-8 rounded-3xl border border-slate-200 bg-white px-6 py-6 text-[15px] text-slate-700 shadow-sm">
-                  <span className="font-bold text-slate-950">Sign in</span> to build a journey trail tied to your account in
-                  this browser.
-                  <Link
-                    to="/login"
-                    state={{ from: "/marketplace/explore" }}
-                    className="ml-2 inline font-bold text-violet-700 underline decoration-violet-300 underline-offset-2"
-                  >
-                    Go to login
-                  </Link>
-                  .
-                </p>
-              ) : yourJourneyItems.length === 0 ? (
-                <p className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-white/80 px-6 py-6 text-[15px] text-slate-600">
-                  No recent activity yet. Open a storefront or use View Details on a listing.
-                </p>
-              ) : (
-                <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {yourJourneyItems.map((v) => {
-                    const apiSlug = journeyCompanyIdToApiSlug(v.companyId);
-                    const merged =
-                      v.numericItemId != null
-                        ? itemsLive.find((it) => Number(it.id) === Number(v.numericItemId)) ?? null
-                        : v.itemSlug && v.itemSlug !== "storefront"
-                          ? mergeHubListing(itemsLive, v.itemSlug, v.itemName || undefined)
-                          : null;
-                    const toHref =
-                      merged?.slug != null
-                        ? marketplaceListingPath(merged.slug)
-                        : v.companyId
-                          ? partnerStorefrontPath(v.companyId)
-                          : apiSlug
-                            ? `/marketplace/companies/${apiSlug}`
-                            : "/marketplace/explore";
-                    return (
-                      <Link
-                        key={`${v.timestamp}-${v.companyId}-${v.itemId ?? "sf"}-${v.visitType || v.action}`}
-                        to={toHref}
-                        className="group flex gap-4 overflow-hidden rounded-3xl border border-slate-200/95 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"
-                      >
-                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-                          {merged?.heroImage ? (
-                            <Media
-                              src={merged.heroImage}
-                              className="h-full w-full object-cover transition group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-[11px] font-bold text-slate-400">
-                              ★
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-[14px] font-bold leading-snug text-slate-900">
-                            {v.itemName || "Visit"}
-                          </p>
-                          <p className="mt-1 text-[12px] font-semibold text-violet-700">
-                            {v.companyName || journeyCompanyIdToPartnerLabel(v.companyId)}
-                          </p>
-                          <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                            {(v.visitType === "storefront"
-                              ? "open storefront"
-                              : v.visitType === "external_website"
-                                ? "visit external website"
-                                : v.action || "visit"
-                            )?.replace(/_/g, " ")}
-                          </p>
-                        </div>
-                      </Link>
-                    );
-                  })}
+          {/* My activity — visit history (signed-in) */}
+          <section id="recent-activity" className="scroll-mt-[88px] border-t border-white/85">
+            <div
+              className="w-full px-8 py-10 lg:py-11"
+              style={{ background: "var(--grad-hero, linear-gradient(135deg, #1a0533 0%, #0f1a4e 100%))" }}
+            >
+              <div className={`${SHELL} flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between`}>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-extrabold tracking-tight text-white md:text-3xl">My activity</h2>
+                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/65">
+                    Every product you&apos;ve explored across all companies
+                  </p>
                 </div>
-              )}
+                {isAuthenticated && user ? (
+                  <div
+                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-lg font-extrabold text-white shadow-inner backdrop-blur-sm"
+                    aria-hidden
+                  >
+                    {userActivityInitials(user)}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="bg-[#f4f6fb] pb-10 pt-6 lg:pb-11 lg:pt-8">
+              <div className={SHELL}>
+                {isAuthenticated ? (
+                  <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter activity by company">
+                    {ACTIVITY_COMPANY_FILTERS.map((f) => {
+                      const active = activityCompanyFilter === f.slug;
+                      return (
+                        <button
+                          key={f.slug}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setActivityCompanyFilter(f.slug)}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            active
+                              ? "border border-transparent text-white shadow-sm"
+                              : "border border-[#e5e7eb] bg-white text-[#6b7280] hover:border-slate-300 hover:text-slate-800"
+                          }`}
+                          style={active ? { background: "var(--grad-purple, linear-gradient(135deg, #7c3aed, #4f46e5))" } : undefined}
+                        >
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {!isAuthenticated ? (
+                  <p className="mt-8 rounded-[14px] border border-[#e5e7eb] bg-white px-6 py-6 text-[15px] text-slate-700 shadow-sm">
+                    <span className="font-bold text-slate-950">Sign in</span> to see your visit history in this browser.
+                    <Link
+                      to="/login"
+                      state={{ from: "/marketplace/explore" }}
+                      className="ml-2 inline font-bold text-[#7c3aed] underline decoration-violet-300 underline-offset-2"
+                    >
+                      Go to login
+                    </Link>
+                    .
+                  </p>
+                ) : yourJourneyItems.length === 0 ? (
+                  <p className="mt-8 rounded-[14px] border border-dashed border-slate-300 bg-white px-6 py-6 text-[15px] text-slate-600">
+                    No recent activity yet. Open a storefront or use View Details on a listing.
+                  </p>
+                ) : filteredJourneyActivity.length === 0 ? (
+                  <p className="mt-8 rounded-[14px] border border-dashed border-slate-300 bg-white px-6 py-6 text-[15px] text-slate-600">
+                    No visits for this company yet. Try another filter or explore the marketplace.
+                  </p>
+                ) : (
+                  <div className="mt-6">
+                    {journeyActivityGroups.map((g) => (
+                      <div key={g.key} className="mb-2">
+                        <div className="sticky top-0 z-[2] -mx-1 bg-[#f4f6fb]/90 px-1 py-1 backdrop-blur-sm">
+                          <span
+                            className="inline-block rounded-[20px] bg-[#f9fafb] px-3 py-1 text-[11px] font-bold text-[#9ca3af]"
+                            style={{ margin: "16px 0 8px" }}
+                          >
+                            {g.label}
+                          </span>
+                        </div>
+                        <ul className="mt-2 flex list-none flex-col gap-3 p-0">
+                          {g.items.map((v) => {
+                            const apiSlug = journeyCompanyIdToApiSlug(v.companyId);
+                            const merged =
+                              v.numericItemId != null
+                                ? itemsLive.find((it) => Number(it.id) === Number(v.numericItemId)) ?? null
+                                : v.itemSlug && v.itemSlug !== "storefront"
+                                  ? mergeHubListing(itemsLive, v.itemSlug, v.itemName || undefined)
+                                  : null;
+                            const toHref =
+                              merged?.slug != null
+                                ? marketplaceListingPath(merged.slug)
+                                : v.companyId
+                                  ? partnerStorefrontPath(v.companyId)
+                                  : apiSlug
+                                    ? `/marketplace/companies/${apiSlug}`
+                                    : "/marketplace/explore";
+                            const swatchColor = (apiSlug && ACTIVITY_COMPANY_SWATCH[apiSlug]) || "#64748b";
+                            const companyLine = v.companyName || journeyCompanyIdToPartnerLabel(v.companyId);
+                            return (
+                              <li
+                                key={`${v.timestamp}-${v.companyId}-${v.itemId ?? "sf"}-${v.visitType || v.action}`}
+                                className="list-none"
+                              >
+                                <div className="flex flex-row items-center justify-between gap-4 rounded-[14px] border border-[#f0f0f0] bg-white px-[18px] py-[14px] shadow-sm">
+                                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                                    <span
+                                      className="mt-1.5 h-[10px] w-[10px] shrink-0 rounded-[4px]"
+                                      style={{ backgroundColor: swatchColor }}
+                                      aria-hidden
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-[14px] font-bold leading-snug text-slate-900">
+                                        {v.itemName || "Visit"}
+                                      </p>
+                                      <p className="mt-0.5 truncate text-[12px] text-[#6b7280]">{companyLine}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+                                    <p className="text-[12px] text-[#9ca3af]">{formatReviewWhen(v.timestamp)}</p>
+                                    <Link to={toHref} className="text-[12px] font-bold text-[#7c3aed] hover:underline">
+                                      View
+                                    </Link>
+                                  </div>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
@@ -1123,7 +1186,9 @@ export default function ExploreMarketplace() {
                       </div>
 
                       <div className="mt-7 border-t border-slate-100 pt-7">
-                        <p className="text-[13px] font-black uppercase tracking-wide text-slate-900">Top 5 in this Storefront</p>
+                        <p className="text-[13px] font-black uppercase tracking-wide text-slate-900">
+                          🏆 Top 5 in this Storefront
+                        </p>
                         <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
                           Top listings based on visits, reviews, and ratings for this company.
                         </p>
@@ -1132,26 +1197,25 @@ export default function ExploreMarketplace() {
                           <p className="mt-4 text-sm leading-relaxed text-slate-600">No listings for this partner in the catalog.</p>
                         ) : null}
                         {topList.length > 0 ? (
-                          <ol className="mt-4 space-y-3">
+                          <ul className="mt-4 flex list-none flex-col gap-3 p-0">
                             {topList.map((merged, idx) => (
-                              <li key={merged.slug || merged.id} className="flex items-center gap-3 text-[14px]">
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] text-xs font-black text-white shadow-sm ring-2 ring-white tabular-nums">
-                                  {idx + 1}
-                                </span>
-                                <div className="hidden h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 md:block">
-                                  <Media src={merged.heroImage} className="h-full w-full object-cover" />
-                                </div>
-                                <p className="min-w-0 flex-1 font-bold leading-snug text-slate-900">{merged.name}</p>
-                                <button
-                                  type="button"
-                                  className="shrink-0 text-[13px] font-bold text-violet-700 underline decoration-violet-300 underline-offset-2 hover:text-violet-950"
-                                  onClick={() => openListingOrStorefront(merged)}
-                                >
-                                  View Details
-                                </button>
+                              <li key={merged.slug || merged.id} className="list-none">
+                                <LeaderboardListRow
+                                  rank={idx + 1}
+                                  title={merged.name}
+                                  subtitle={null}
+                                  category={merged.category}
+                                  reviewCount={merged.reviewCount}
+                                  avgRating={merged.avgRating}
+                                  to={
+                                    merged.slug != null
+                                      ? marketplaceListingPath(merged.slug)
+                                      : `/marketplace/products/${merged.id}`
+                                  }
+                                />
                               </li>
                             ))}
-                          </ol>
+                          </ul>
                         ) : null}
                       </div>
                     </article>

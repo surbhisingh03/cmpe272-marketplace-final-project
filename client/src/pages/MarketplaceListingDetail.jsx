@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiArrowLeft, FiExternalLink, FiStar } from "react-icons/fi";
+import { FiArrowLeft, FiExternalLink } from "react-icons/fi";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
@@ -22,9 +22,84 @@ import {
   trackingDisplayFirstName,
 } from "../lib/marketplaceUserTracking.js";
 import { categoryRibbonLabel, displayCompanyName, marketplaceListingPath } from "../lib/marketplaceDisplay.js";
-import { HUB_GRADIENT_HOVER, STOREFRONT_COMPANY_META } from "../lib/storefrontBranding.js";
+import { HUB_GRADIENT_HOVER } from "../lib/storefrontBranding.js";
 
 const SHELL = "mx-auto w-full max-w-[1320px] px-6 lg:px-8";
+
+/** Header company pill — partner storefront gradients */
+const COMPANY_HEADER_GRADIENT = {
+  "nexus-academy": "linear-gradient(135deg, #7c3aed, #4f46e5)",
+  "travel-agency": "linear-gradient(135deg, #0891b2, #0d9488)",
+  "srikavya-enterprise": "linear-gradient(135deg, #d97706, #dc2626)",
+  krativerse: "linear-gradient(135deg, #db2777, #7c3aed)",
+};
+
+const AVATAR_GRADIENT_POOL = [
+  "linear-gradient(135deg, #7c3aed, #4f46e5)",
+  "linear-gradient(135deg, #0891b2, #0d9488)",
+  "linear-gradient(135deg, #d97706, #dc2626)",
+  "linear-gradient(135deg, #db2777, #7c3aed)",
+];
+
+function companyHeaderGradient(slug) {
+  const s = String(slug || "");
+  return COMPANY_HEADER_GRADIENT[s] || "linear-gradient(135deg, #7c3aed, #4f46e5)";
+}
+
+function hashString(str) {
+  let h = 0;
+  const s = String(str || "");
+  for (let i = 0; i < s.length; i += 1) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function reviewInitials(displayName) {
+  const raw = String(displayName || "").trim();
+  if (!raw) return "?";
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  if (parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[0][0]}`.toUpperCase();
+}
+
+function avatarGradientForName(name) {
+  const i = hashString(name) % AVATAR_GRADIENT_POOL.length;
+  return AVATAR_GRADIENT_POOL[i];
+}
+
+/** 5×28px stars: #d1d5db default, #f59e0b on hover + selected */
+function ListingStarPicker({ value, onChange }) {
+  const [hover, setHover] = useState(0);
+  const display = hover || value;
+
+  return (
+    <div
+      className="flex gap-0.5"
+      role="group"
+      aria-label="Rating"
+      onMouseLeave={() => setHover(0)}
+    >
+      {[1, 2, 3, 4, 5].map((n) => {
+        const active = n <= display;
+        return (
+          <button
+            key={n}
+            type="button"
+            onMouseEnter={() => setHover(n)}
+            onClick={() => onChange(n)}
+            className="p-0.5 leading-none transition-colors"
+            style={{ color: active ? "#f59e0b" : "#d1d5db" }}
+            aria-label={`${n} star${n === 1 ? "" : "s"}`}
+          >
+            <span className="select-none" style={{ fontSize: 28 }} aria-hidden>
+              ★
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function Media({ src, className, alt = "" }) {
   const [err, setErr] = useState(false);
@@ -77,23 +152,6 @@ function CompactReviewSummary({ reviewDetail }) {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function StarInput({ value, onChange }) {
-  return (
-    <div className="flex gap-0.5" role="group" aria-label="Rating">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          className={`rounded p-0.5 ${n <= value ? "text-amber-500" : "text-slate-300 hover:text-slate-400"}`}
-        >
-          <FiStar className={`h-7 w-7 ${n <= value ? "fill-current" : ""}`} aria-hidden />
-        </button>
-      ))}
     </div>
   );
 }
@@ -182,8 +240,6 @@ export default function MarketplaceListingDetail() {
   const showLegalByline = Boolean(partnerBrand && legalName && legalName !== partnerBrand);
 
   const journeyId = product?.companySlug ? apiCompanySlugToJourneyCompanyId(product.companySlug) : null;
-  const meta = product?.companySlug ? STOREFRONT_COMPANY_META[product.companySlug] : null;
-  const accent = meta?.accent;
   const storefrontPath = journeyId ? partnerStorefrontPath(journeyId) : `/marketplace/companies/${product?.companySlug || ""}`;
   const externalUrl =
     (journeyId && partnerOriginalWebsiteUrl(journeyId)) || product?.companyUrl || "#";
@@ -324,10 +380,7 @@ export default function MarketplaceListingDetail() {
 
   if (loading && !payload) {
     return (
-      <div className="relative min-h-screen overflow-x-hidden bg-[#eaeef4] text-slate-900 antialiased">
-        <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-          <div className="absolute left-[min(12%,10rem)] top-[-18%] h-[min(52rem,130vw)] w-[min(52rem,130vw)] rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.20)_0%,transparent_62%)]" />
-        </div>
+      <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
         <div className="relative z-10">
           <MarketingNav />
           <main className={`${SHELL} py-16`}>
@@ -341,7 +394,7 @@ export default function MarketplaceListingDetail() {
 
   if (loadError || !product) {
     return (
-      <div className="relative min-h-screen overflow-x-hidden bg-[#eaeef4] text-slate-900 antialiased">
+      <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
         <div className="relative z-10">
           <MarketingNav />
           <main className={`${SHELL} py-16`}>
@@ -361,16 +414,8 @@ export default function MarketplaceListingDetail() {
     );
   }
 
-  const ratingLabel =
-    reviewDetail.count > 0 ? `${reviewDetail.avg.toFixed(1)} out of 5` : "No rating yet";
-
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#eaeef4] text-slate-900 antialiased">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute left-[min(12%,10rem)] top-[-18%] h-[min(52rem,130vw)] w-[min(52rem,130vw)] rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.20)_0%,transparent_62%)]" />
-        <div className="absolute right-[-8%] top-[26%] h-[min(42rem,100vw)] w-[min(42rem,100vw)] rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.16)_0%,transparent_64%)]" />
-      </div>
-
+    <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
       <div className="relative z-10">
         <MarketingNav />
 
@@ -404,70 +449,77 @@ export default function MarketplaceListingDetail() {
               </div>
             </div>
 
-            <div
-              className={`product-info-card flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_20px_55px_-28px_rgba(15,23,42,0.18)] lg:min-h-[480px] lg:p-8 ${
-                accent ? `bg-gradient-to-br ${accent.softBg}` : ""
-              }`}
-            >
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ring-1 ${
-                    accent?.badge ?? "bg-slate-100 text-slate-800 ring-slate-200/80"
-                  }`}
-                >
-                  {displayCompanyName(product.companySlug)}
-                </span>
-                <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-violet-800 ring-1 ring-violet-200/80">
-                  {categoryRibbonLabel(product.category)}
-                </span>
-              </div>
+            <div className="product-info-card flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_20px_55px_-28px_rgba(15,23,42,0.18)] lg:min-h-[480px] lg:p-8">
+              <nav className="text-[12px] leading-snug text-slate-500" aria-label="Breadcrumb">
+                <Link to="/marketplace/explore" className="text-slate-500 transition hover:text-slate-700">
+                  Marketplace
+                </Link>
+                <span className="mx-1.5 text-slate-400">›</span>
+                <Link to={storefrontPath} className="text-slate-500 transition hover:text-slate-700">
+                  {partnerBrand}
+                </Link>
+                <span className="mx-1.5 text-slate-400">›</span>
+                <span className="text-slate-600">{product.name}</span>
+              </nav>
 
-              <h1 className="mt-3 font-display text-2xl font-bold leading-tight text-slate-900 md:text-3xl">
+              <h1 className="mt-4 font-display leading-tight text-[#111]" style={{ fontSize: 26, fontWeight: 800 }}>
                 {product.name}
               </h1>
               {showLegalByline ? (
                 <p className="mt-1.5 text-xs font-medium text-slate-500">by {legalName}</p>
               ) : null}
 
-              <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm ring-1 ring-slate-200/60">
-                {listingMeta?.pricePrimary || listingMeta?.priceSecondary ? (
-                  <div>
-                    {listingMeta.pricePrimary ? (
-                      <p className="font-display text-2xl font-bold tabular-nums tracking-tight text-slate-900 md:text-[1.65rem]">
-                        {listingMeta.pricePrimary}
-                      </p>
-                    ) : null}
-                    {listingMeta.priceSecondary ? (
-                      <p className="mt-0.5 text-sm font-semibold text-slate-600">{listingMeta.priceSecondary}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                <p className={`text-[15px] leading-relaxed text-slate-700 ${listingMeta?.pricePrimary || listingMeta?.priceSecondary ? "mt-3 border-t border-slate-100 pt-3" : ""}`}>
-                  {product.excerpt}
-                </p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="flex select-none leading-none" aria-hidden style={{ fontSize: 18, color: "#f59e0b" }}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <span
+                      key={s}
+                      style={{
+                        color:
+                          reviewDetail.count > 0 && s <= Math.round(Number(reviewDetail.avg) || 0)
+                            ? "#f59e0b"
+                            : "#e5e7eb",
+                      }}
+                    >
+                      ★
+                    </span>
+                  ))}
+                </span>
+                <span className="text-lg font-bold tabular-nums text-[#111]">
+                  {reviewDetail.count > 0 ? reviewDetail.avg.toFixed(1) : "—"}
+                </span>
+                <span className="text-sm text-slate-500">
+                  {reviewDetail.count} review{reviewDetail.count === 1 ? "" : "s"}
+                  <span className="text-slate-300"> · </span>
+                  {analytics.visits.toLocaleString()} visit{analytics.visits === 1 ? "" : "s"}
+                </span>
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm"
+                  style={{ background: companyHeaderGradient(product.companySlug) }}
+                >
+                  {partnerBrand}
+                </span>
+                <span className="w-full text-[11px] font-semibold uppercase tracking-wide text-slate-400 sm:w-auto sm:pl-1">
+                  {categoryRibbonLabel(product.category)}
+                </span>
               </div>
 
-              <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5">
-                <div className="rounded-xl border border-white/80 bg-white/90 px-2.5 py-2 shadow-sm">
-                  <dt className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Rating</dt>
-                  <dd className={`mt-0.5 text-base font-black ${accent?.stat ?? "text-slate-900"}`}>
-                    {reviewDetail.count > 0 ? reviewDetail.avg.toFixed(1) : "—"}
-                  </dd>
-                  <dd className="text-[11px] text-slate-500">{ratingLabel}</dd>
-                </div>
-                <div className="rounded-xl border border-white/80 bg-white/90 px-2.5 py-2 shadow-sm">
-                  <dt className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Reviews</dt>
-                  <dd className="mt-0.5 text-base font-black text-slate-900">
-                    {reviewDetail.count} review{reviewDetail.count === 1 ? "" : "s"}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-white/80 bg-white/90 px-2.5 py-2 shadow-sm">
-                  <dt className="text-[9px] font-bold uppercase tracking-wide text-slate-500">Visits</dt>
-                  <dd className="mt-0.5 text-base font-black text-slate-900">{analytics.visits}</dd>
-                </div>
-              </dl>
+              <p className="mt-5 text-[15px] leading-[1.8] text-[#374151]">{product.excerpt}</p>
 
-              <div className="mt-5 flex flex-col gap-2.5">
+              {listingMeta?.pricePrimary || listingMeta?.priceSecondary ? (
+                <div className="mt-5 rounded-xl border border-slate-200/80 bg-slate-50/80 p-4">
+                  {listingMeta.pricePrimary ? (
+                    <p className="font-display text-2xl font-bold tabular-nums tracking-tight text-slate-900 md:text-[1.65rem]">
+                      {listingMeta.pricePrimary}
+                    </p>
+                  ) : null}
+                  {listingMeta.priceSecondary ? (
+                    <p className="mt-0.5 text-sm font-semibold text-slate-600">{listingMeta.priceSecondary}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-col gap-2.5 border-t border-slate-100 pt-6">
                 <a
                   href={externalUrl}
                   target="_blank"
@@ -553,47 +605,58 @@ export default function MarketplaceListingDetail() {
             ref={reviewFormRef}
             className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-6"
           >
-            <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.12)] lg:min-h-[300px] lg:p-6">
-              <h2 className="font-display text-lg font-bold text-slate-900">Write a Review</h2>
+            <section className="flex min-h-0 flex-col rounded-[16px] border border-[#f0f0f0] bg-white p-[20px] shadow-sm lg:min-h-[300px]">
+              <h2 className="text-[15px] font-bold text-slate-900">Write a review</h2>
               {reviewSuccess ? (
-                <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
+                <p className="mt-3 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
                   Review submitted successfully.
                 </p>
               ) : null}
               {!isAuthenticated ? (
-                <p className="mt-3 text-sm text-slate-600">
-                  <Link to="/login" state={{ from: `${marketplaceListingPath(slug)}?review=1` }} className="font-bold text-violet-700 underline">
+                <div
+                  className="mt-4 flex flex-col gap-3 rounded-2xl border border-violet-100 border-l-4 border-l-[#7c3aed] bg-violet-50/90 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p className="text-sm font-medium text-slate-800">Sign in to share your experience</p>
+                  <Link
+                    to="/login"
+                    state={{ from: `${marketplaceListingPath(slug)}?review=1` }}
+                    className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#7c3aed] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#6d28d9]"
+                  >
                     Sign in
-                  </Link>{" "}
-                  to submit a review.
-                </p>
+                  </Link>
+                </div>
               ) : (
-                <form onSubmit={submitReview} className="mt-4 space-y-3">
+                <form onSubmit={submitReview} className="mt-4">
                   <div>
-                    <p className="mb-1.5 text-xs font-medium text-slate-600">Your rating</p>
-                    <StarInput value={stars} onChange={setStars} />
+                    <ListingStarPicker value={stars} onChange={setStars} />
                   </div>
-                  <div>
-                    <label htmlFor="listing-review-comment" className="text-xs font-medium text-slate-600">
+                  <div className="mt-4">
+                    <label htmlFor="listing-review-comment" className="sr-only">
                       Review comment
                     </label>
                     <textarea
                       id="listing-review-comment"
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      rows={3}
-                      className="mt-1 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-500/25"
+                      rows={4}
+                      className="w-full resize-y rounded-[10px] border-[1.5px] border-[#e5e7eb] bg-white text-[14px] text-[#111827] outline-none transition placeholder:text-slate-400 focus:border-[#7c3aed] focus:shadow-[0_0_0_3px_rgba(124,58,237,0.1)]"
+                      style={{ padding: 12, minHeight: 90 }}
                       placeholder="What did you like? Was the product/service helpful?"
                     />
                   </div>
-                  {formErr ? <p className="text-sm text-red-600">{formErr}</p> : null}
+                  {formErr ? <p className="mt-2 text-sm text-red-600">{formErr}</p> : null}
                   <button
                     type="submit"
                     disabled={submitting}
-                    className={`inline-flex min-h-[42px] w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] px-6 text-sm font-bold text-white shadow-md disabled:opacity-50 sm:w-auto ${HUB_GRADIENT_HOVER}`}
+                    className="float-right mt-4 rounded-[10px] border-0 px-6 py-2.5 text-[15px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                    style={{
+                      background: "var(--grad-cta, linear-gradient(135deg, #a78bfa, #60a5fa))",
+                      padding: "10px 24px",
+                    }}
                   >
-                    {submitting ? "Submitting…" : "Submit Review"}
+                    {submitting ? "Submitting…" : "Submit review"}
                   </button>
+                  <div className="clear-both" aria-hidden />
                 </form>
               )}
             </section>
@@ -619,27 +682,44 @@ export default function MarketplaceListingDetail() {
                   </button>
                 </div>
               ) : (
-                <ul className="mt-4 max-h-[min(280px,42vh)] space-y-3 overflow-y-auto pr-1">
-                  {customerReviews.map((r) => (
-                    <li key={r.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-bold text-slate-900">{r.userName || "Member"}</p>
-                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-900">
-                          Verified Marketplace User
-                        </span>
-                      </div>
-                      <div className="mt-1.5 flex text-amber-500" aria-label={`${r.rating} stars`}>
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <FiStar key={s} className={`h-3.5 w-3.5 ${s <= r.rating ? "fill-current" : "text-slate-200"}`} />
-                        ))}
-                      </div>
-                      <p className="mt-1 text-xs font-semibold text-slate-600">
-                        {displayCompanyName(product.companySlug)} · {product.name}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-800">{r.comment || "—"}</p>
-                      <p className="mt-2 text-[11px] font-medium text-slate-500">{formatWhen(r.timestamp)}</p>
-                    </li>
-                  ))}
+                <ul className="mt-4 max-h-[min(420px,55vh)] list-none space-y-2.5 overflow-y-auto p-0 pr-1">
+                  {customerReviews.map((r) => {
+                    const who = r.userName || "Member";
+                    const initials = reviewInitials(who);
+                    const grad = avatarGradientForName(who);
+                    return (
+                      <li
+                        key={r.id}
+                        className="mb-2.5 rounded-[14px] border border-[#f0f0f0] bg-white p-4 shadow-sm last:mb-0"
+                      >
+                        <div className="flex gap-3">
+                          <div
+                            className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
+                            style={{ background: grad, fontWeight: 700 }}
+                            aria-hidden
+                          >
+                            {initials}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                              <span className="text-[14px] font-bold text-slate-900">{who}</span>
+                              <time className="text-[12px] text-slate-500" dateTime={r.timestamp}>
+                                {formatWhen(r.timestamp)}
+                              </time>
+                            </div>
+                            <div className="mt-1 flex select-none leading-none" style={{ fontSize: 14, color: "#f59e0b" }} aria-label={`${r.rating} stars`}>
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <span key={s} style={{ color: s <= Number(r.rating) ? "#f59e0b" : "#e5e7eb" }}>
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                            <p className="mt-2 text-[14px] leading-[1.7] text-[#374151]">{r.comment || "—"}</p>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>

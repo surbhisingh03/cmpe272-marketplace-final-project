@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import GradientMesh from "../../components/layout/GradientMesh.jsx";
 import GlassCard from "../../components/ui/GlassCard.jsx";
 import { apiFetch } from "../../lib/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -55,11 +54,10 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-hub-bg">
-      <GradientMesh />
+    <div className="relative min-h-screen overflow-hidden bg-[#F8FAFC]">
       <div className="mx-auto flex min-h-screen items-center justify-center px-4 py-16">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-          <GlassCard className="p-8" glow>
+          <GlassCard className="p-8" glow surface="glass">
             <div className="text-xs uppercase tracking-[0.35em] text-slate-500">Observatory</div>
             <h1 className="mt-2 font-display text-2xl font-bold text-white">Admin authentication</h1>
             <p className="mt-2 text-sm text-slate-400">

@@ -5,6 +5,31 @@ import { computePopularityScore } from "../utils/score.js";
 
 const router = Router();
 
+/** Public aggregates for marketing landing (MySQL). */
+router.get("/landing-stats", async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[row]] = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM products) AS productCount,
+        (SELECT COUNT(*) FROM users) AS userCount,
+        (SELECT COUNT(*) FROM reviews WHERE status = 'published') AS reviewCount,
+        (SELECT COALESCE(AVG(rating), 0) FROM reviews WHERE status = 'published') AS avgRating,
+        (SELECT COUNT(*) FROM companies) AS companyCount
+    `);
+    res.json({
+      productCount: Number(row?.productCount) || 0,
+      userCount: Number(row?.userCount) || 0,
+      reviewCount: Number(row?.reviewCount) || 0,
+      avgRating: row?.avgRating != null ? Number(row.avgRating) : 0,
+      companyCount: Number(row?.companyCount) || 0,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: "Could not load landing stats" });
+  }
+});
+
 /** Full unified catalog — listing, filters, aggregates for Explore Marketplace */
 router.get("/catalog", async (req, res) => {
   const pool = getPool();
@@ -42,7 +67,8 @@ router.get("/companies", async (req, res) => {
   const pool = getPool();
   const [companies] = await pool.query(
     `SELECT c.id, c.slug, c.name, c.tagline, c.description, c.banner_url AS bannerUrl,
-            c.external_url AS externalUrl, c.avg_rating AS avgRating, c.review_count AS reviewCount
+            c.external_url AS externalUrl, c.avg_rating AS avgRating, c.review_count AS reviewCount,
+            (SELECT COUNT(*) FROM products p WHERE p.company_id = c.id) AS productCount
      FROM companies c ORDER BY c.name`
   );
   const topPreviewByCompany = {};
@@ -220,8 +246,10 @@ router.get("/leaderboards", async (req, res) => {
     const [top] = await pool.query(
       `SELECT p.id, p.name, p.slug, p.excerpt, p.hero_image AS heroImage,
               p.visit_count AS visitCount, p.popularity_score AS popularityScore, p.company_id AS companyId,
+              p.category,
               c.slug AS companySlug, c.name AS companyName,
-              (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status = 'published') AS reviewCount
+              (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status = 'published') AS reviewCount,
+              (SELECT ROUND(COALESCE(AVG(r.rating), 0), 2) FROM reviews r WHERE r.product_id = p.id AND r.status = 'published') AS avgRating
        FROM products p JOIN companies c ON c.id = p.company_id
        WHERE p.company_id = :cid ORDER BY popularity_score DESC, visit_count DESC LIMIT 5`,
       { cid: c.id }
@@ -232,8 +260,10 @@ router.get("/leaderboards", async (req, res) => {
   const [globalTop] = await pool.query(
     `SELECT p.id, p.name, p.slug, p.excerpt, p.hero_image AS heroImage,
             p.visit_count AS visitCount, p.popularity_score AS popularityScore, p.company_id AS companyId,
+            p.category,
             c.slug AS companySlug, c.name AS companyName,
-            (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status = 'published') AS reviewCount
+            (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status = 'published') AS reviewCount,
+            (SELECT ROUND(COALESCE(AVG(r.rating), 0), 2) FROM reviews r WHERE r.product_id = p.id AND r.status = 'published') AS avgRating
      FROM products p JOIN companies c ON c.id = p.company_id
      ORDER BY popularity_score DESC, visit_count DESC LIMIT 5`
   );
