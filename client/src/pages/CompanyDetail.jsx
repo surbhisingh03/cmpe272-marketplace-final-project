@@ -45,7 +45,7 @@ export default function CompanyDetail() {
 
 function StorefrontLoadShell({ children }) {
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#eaeef4] text-slate-900 antialiased">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
       <div className="relative z-10">
         <MarketingNav />
         <main className="mx-auto max-w-[1320px] px-6 pb-16 pt-8 lg:px-8">{children}</main>

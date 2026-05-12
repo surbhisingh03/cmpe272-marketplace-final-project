@@ -3,7 +3,6 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-r
 import { motion } from "framer-motion";
 import { FiBookmark, FiExternalLink } from "react-icons/fi";
 import PublicShell from "../components/layout/PublicShell.jsx";
-import GradientMesh from "../components/layout/GradientMesh.jsx";
 import GlassCard from "../components/ui/GlassCard.jsx";
 import { apiFetch } from "../lib/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -116,7 +115,7 @@ export default function ProductDetail() {
   if (!data) {
     return (
       <PublicShell>
-        <div className="flex min-h-[40vh] items-center justify-center text-slate-500">
+        <div className="flex min-h-[40vh] items-center justify-center text-[#6B7280]">
           Calibrating product intelligence…
         </div>
       </PublicShell>
@@ -138,21 +137,20 @@ export default function ProductDetail() {
   return (
     <PublicShell>
       <div className="relative">
-        <GradientMesh />
         <section>
           <div className="relative h-[420px] w-full overflow-hidden">
             <img src={product.heroImage} alt="" className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-hub-bg via-hub-bg/40 to-hub-bg/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#F8FAFC] via-[#0f172a]/35 to-[#0f172a]/55" />
             <div className="absolute bottom-0 left-0 right-0">
               <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4 px-4 pb-10 lg:px-6">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.3em] text-slate-300">
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/80">
                     {product.companyName}
                   </div>
-                  <h1 className="mt-2 font-display text-4xl font-bold text-white md:text-5xl">
+                  <h1 className="mt-2 font-display text-4xl font-bold text-white md:text-5xl drop-shadow-sm">
                     {product.name}
                   </h1>
-                  <p className="mt-3 max-w-2xl text-slate-200">{product.excerpt}</p>
+                  <p className="mt-3 max-w-2xl text-white/90">{product.excerpt}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -197,7 +195,7 @@ export default function ProductDetail() {
           </div>
 
           <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
-            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+            <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
               {tabs.map((t) => (
                 <button
                   key={t}
@@ -205,8 +203,8 @@ export default function ProductDetail() {
                   onClick={() => setTab(t)}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     tab === t
-                      ? "bg-white/15 text-white"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-violet-100 text-violet-900"
+                      : "text-[#6B7280] hover:bg-slate-100 hover:text-[#111827]"
                   }`}
                 >
                   {t}
@@ -221,22 +219,22 @@ export default function ProductDetail() {
                 className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_.8fr]"
               >
                 <GlassCard className="p-8">
-                  <h2 className="font-display text-xl font-semibold text-white">Details</h2>
-                  <p className="mt-4 leading-relaxed text-slate-300">{product.description}</p>
+                  <h2 className="font-display text-xl font-semibold text-[#111827]">Details</h2>
+                  <p className="mt-4 leading-relaxed text-[#6B7280]">{product.description}</p>
                   <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs text-slate-500">Category</div>
-                      <div className="mt-1 text-sm text-white">{product.category}</div>
+                    <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
+                      <div className="text-xs text-[#6B7280]">Category</div>
+                      <div className="mt-1 text-sm font-medium text-[#111827]">{product.category}</div>
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs text-slate-500">Total visits</div>
-                      <div className="mt-1 text-sm text-white">
+                    <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
+                      <div className="text-xs text-[#6B7280]">Total visits</div>
+                      <div className="mt-1 text-sm font-medium text-[#111827]">
                         <AnimatedNumber value={lsProductStats.visits} />
                       </div>
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs text-slate-500">Reviews</div>
-                      <div className="mt-1 text-sm text-white">
+                    <div className="rounded-xl border border-slate-200 bg-[#F8FAFC] p-4">
+                      <div className="text-xs text-[#6B7280]">Reviews</div>
+                      <div className="mt-1 text-sm font-medium text-[#111827]">
                         <AnimatedNumber value={lsReviewDetail.count} />
                       </div>
                     </div>
@@ -244,22 +242,22 @@ export default function ProductDetail() {
                 </GlassCard>
                 <div className="space-y-6">
                   <GlassCard className="p-6">
-                    <div className="text-xs uppercase tracking-widest text-slate-500">
+                    <div className="text-xs font-bold uppercase tracking-widest text-[#6B7280]">
                       Reputation
                     </div>
                     <div className="mt-2 flex items-baseline gap-2">
-                      <div className="font-display text-4xl font-bold text-white">
+                      <div className="font-display text-4xl font-bold text-[#111827]">
                         {lsReviewDetail.count > 0 ? Number(lsReviewDetail.avg || 0).toFixed(2) : "—"}
                       </div>
-                      <div className="text-sm text-slate-400">
+                      <div className="text-sm text-[#6B7280]">
                         {lsReviewDetail.count > 0
                           ? `${lsReviewDetail.count} review${lsReviewDetail.count === 1 ? "" : "s"}`
                           : "No rating yet"}
                       </div>
                     </div>
-                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-hub-violet to-hub-cyan"
+                        className="h-full rounded-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4]"
                         style={{
                           width: `${lsReviewDetail.count > 0 ? Math.min(100, (Number(lsReviewDetail.avg) / 5) * 100) : 0}%`,
                         }}
@@ -267,7 +265,7 @@ export default function ProductDetail() {
                     </div>
                   </GlassCard>
                   <GlassCard className="p-6">
-                    <div className="text-xs uppercase tracking-widest text-slate-500">
+                    <div className="text-xs font-bold uppercase tracking-widest text-[#6B7280]">
                       Related
                     </div>
                     <ul className="mt-3 space-y-2">
@@ -275,10 +273,10 @@ export default function ProductDetail() {
                         <li key={r.id}>
                           <Link
                             to={`/marketplace/products/${r.id}`}
-                            className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:border-hub-violet/40"
+                            className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#F8FAFC] px-3 py-2 text-sm transition hover:border-[#7C3AED]/30 hover:bg-white"
                           >
-                            <span className="text-white">{r.name}</span>
-                            <span className="text-[10px] text-slate-500">view</span>
+                            <span className="font-medium text-[#111827]">{r.name}</span>
+                            <span className="text-[10px] font-semibold text-[#7c3aed]">view</span>
                           </Link>
                         </li>
                       ))}
@@ -291,10 +289,10 @@ export default function ProductDetail() {
             {tab === "Reviews" && (
               <div className="mt-8 grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
                 <GlassCard className="p-6">
-                  <div className="text-xs uppercase tracking-widest text-slate-500">
+                  <div className="text-xs font-bold uppercase tracking-widest text-[#6B7280]">
                     Distribution
                   </div>
-                  <div className="mt-4 space-y-2 text-sm text-slate-200">
+                  <div className="mt-4 space-y-2 text-sm text-[#111827]">
                     {[5, 4, 3, 2, 1].map((s) => {
                       const key = `s${s}`;
                       const val = dist ? Number(dist[key] || 0) : 0;
@@ -302,14 +300,14 @@ export default function ProductDetail() {
                       const pct = Math.round((val / total) * 100);
                       return (
                         <div key={s} className="flex items-center gap-2">
-                          <div className="w-6 text-xs text-slate-500">{s}★</div>
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                          <div className="w-6 text-xs text-[#6B7280]">{s}★</div>
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-hub-violet to-hub-cyan"
+                              className="h-full rounded-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4]"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <div className="w-8 text-right text-xs text-slate-500">{val}</div>
+                          <div className="w-8 text-right text-xs text-[#6B7280]">{val}</div>
                         </div>
                       );
                     })}
@@ -318,7 +316,7 @@ export default function ProductDetail() {
                 <div className="space-y-4">
                   {lsReviewDetail.recent.length === 0 ? (
                     <GlassCard className="p-6" hover={false}>
-                      <p className="text-sm text-slate-300">
+                      <p className="text-sm text-[#6B7280]">
                         No reviews yet. Be the first to write one.
                       </p>
                     </GlassCard>
@@ -327,14 +325,14 @@ export default function ProductDetail() {
                       <GlassCard key={rv.id} className="p-5" hover={false}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <div className="text-sm font-semibold text-white">{rv.userName || "Member"}</div>
-                            <div className="text-xs text-slate-500">{product.name}</div>
+                            <div className="text-sm font-semibold text-[#111827]">{rv.userName || "Member"}</div>
+                            <div className="text-xs text-[#6B7280]">{product.name}</div>
                           </div>
-                          <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-amber-200">
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200/80">
                             {rv.rating}★
                           </span>
                         </div>
-                        <p className="mt-3 text-sm leading-relaxed text-slate-300">{rv.comment || "—"}</p>
+                        <p className="mt-3 text-sm leading-relaxed text-[#6B7280]">{rv.comment || "—"}</p>
                       </GlassCard>
                     ))
                   )}
@@ -345,25 +343,25 @@ export default function ProductDetail() {
             {tab === "Activity" && (
               <div className="mt-8 grid gap-6 md:grid-cols-3">
                 <GlassCard className="p-6">
-                  <div className="text-xs text-slate-500">Listing visits</div>
-                  <div className="mt-2 font-display text-3xl font-bold text-white">
+                  <div className="text-xs text-[#6B7280]">Listing visits</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-[#111827]">
                     <AnimatedNumber value={lsProductStats.visits} />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Visits recorded when signed-in users open this listing.</p>
+                  <p className="mt-2 text-xs text-[#6B7280]">Visits recorded when signed-in users open this listing.</p>
                 </GlassCard>
                 <GlassCard className="p-6">
-                  <div className="text-xs text-slate-500">Reviews</div>
-                  <div className="mt-2 font-display text-3xl font-bold text-white">
+                  <div className="text-xs text-[#6B7280]">Reviews</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-[#111827]">
                     <AnimatedNumber value={lsReviewDetail.count} />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Reviews submitted on the marketplace for this listing.</p>
+                  <p className="mt-2 text-xs text-[#6B7280]">Reviews submitted on the marketplace for this listing.</p>
                 </GlassCard>
                 <GlassCard className="p-6">
-                  <div className="text-xs text-slate-500">Average rating</div>
-                  <div className="mt-2 font-display text-3xl font-bold text-white">
+                  <div className="text-xs text-[#6B7280]">Average rating</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-[#111827]">
                     {lsReviewDetail.count > 0 ? Number(lsReviewDetail.avg || 0).toFixed(2) : "—"}
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-[#6B7280]">
                     {lsReviewDetail.count > 0 ? "From submitted star ratings." : "No rating yet."}
                   </p>
                 </GlassCard>

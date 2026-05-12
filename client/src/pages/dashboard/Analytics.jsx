@@ -22,7 +22,7 @@ export default function DashboardAnalytics() {
   }, []);
 
   if (!sum) {
-    return <div className="text-sm text-slate-400">Hydrating analytic tensors…</div>;
+    return <div className="text-sm text-[#6B7280]">Hydrating analytic tensors…</div>;
   }
 
   const heatmap = [...sum.visitHeatmap].sort((a, b) => new Date(a.d) - new Date(b.d));
@@ -31,10 +31,10 @@ export default function DashboardAnalytics() {
     <div className="space-y-8">
       <div>
         <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Analytics</div>
-        <h1 className="mt-2 font-display text-3xl font-bold text-white">
+        <h1 className="mt-2 font-display text-3xl font-bold text-[#111827]">
           Immersive personal intelligence
         </h1>
-        <p className="mt-2 max-w-xl text-sm text-slate-400">
+        <p className="mt-2 max-w-xl text-sm text-[#6B7280]">
           Heat correlations, uplift vectors, and visit gravity wells across all connected enterprises.
         </p>
       </div>
@@ -47,10 +47,10 @@ export default function DashboardAnalytics() {
         ].map(([title, sub, anchor]) => (
           <GlassCard key={title} className="p-5">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{title}</div>
-            <div className="mt-4 font-display text-3xl font-bold text-white">
+            <div className="mt-4 font-display text-3xl font-bold text-[#111827]">
               <AnimatedNumber value={anchor} />
             </div>
-            <div className="mt-2 text-xs text-hub-cyan">{sub}</div>
+            <div className="mt-2 text-xs text-cyan-700">{sub}</div>
           </GlassCard>
         ))}
       </div>
@@ -63,15 +63,16 @@ export default function DashboardAnalytics() {
           <div className="mt-6 h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sum.visitsByCompany}>
-                <CartesianGrid stroke="rgba(255,255,255,.05)" vertical={false} />
-                <XAxis dataKey="companyName" stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 10 }} />
-                <YAxis stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+                <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="companyName" stroke="#64748b" tick={{ fill: "#64748b", fontSize: 10 }} />
+                <YAxis stroke="#64748b" tick={{ fill: "#64748b", fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{
-                    background: "#111827",
+                    background: "#fff",
                     borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,.08)",
+                    border: "1px solid #e2e8f0",
                     fontSize: 12,
+                    color: "#111827",
                   }}
                 />
                 <defs>
@@ -93,15 +94,16 @@ export default function DashboardAnalytics() {
           <div className="mt-6 h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={heatmap.map((h) => ({ d: String(h.d).slice(5), visits: Number(h.n) }))}>
-                <CartesianGrid stroke="rgba(255,255,255,.05)" vertical={false} />
-                <XAxis dataKey="d" stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 10 }} />
-                <YAxis stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+                <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="d" stroke="#64748b" tick={{ fill: "#64748b", fontSize: 10 }} />
+                <YAxis stroke="#64748b" tick={{ fill: "#64748b", fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{
-                    background: "#111827",
+                    background: "#fff",
                     borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,.08)",
+                    border: "1px solid #e2e8f0",
                     fontSize: 12,
+                    color: "#111827",
                   }}
                 />
                 <defs>
@@ -124,15 +126,16 @@ export default function DashboardAnalytics() {
         <div className="mt-6 h-[260px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={heatmap.map((h) => ({ d: String(h.d).slice(5), v: Number(h.n) }))}>
-              <CartesianGrid stroke="rgba(255,255,255,.05)" />
-              <XAxis dataKey="d" stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 10 }} />
-              <YAxis stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+              <CartesianGrid stroke="#e2e8f0" />
+              <XAxis dataKey="d" stroke="#64748b" tick={{ fill: "#64748b", fontSize: 10 }} />
+              <YAxis stroke="#64748b" tick={{ fill: "#64748b", fontSize: 10 }} />
               <Tooltip
                 contentStyle={{
-                  background: "#111827",
+                  background: "#fff",
                   borderRadius: 12,
-                  border: "1px solid rgba(255,255,255,.08)",
+                  border: "1px solid #e2e8f0",
                   fontSize: 12,
+                  color: "#111827",
                 }}
               />
               <Line type="monotone" dataKey="v" stroke="#EC4899" strokeWidth={3} dot={false} />

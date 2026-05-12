@@ -55,8 +55,8 @@ export default function DashboardHome() {
     <div className="space-y-8">
       <div>
         <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Home</div>
-        <h1 className="mt-2 font-display text-3xl font-bold text-white">Command overview</h1>
-        <p className="mt-2 max-w-xl text-sm text-slate-400">
+        <h1 className="mt-2 font-display text-3xl font-bold text-[#111827]">Command overview</h1>
+        <p className="mt-2 max-w-xl text-sm text-[#6B7280]">
           Cross-domain breadcrumbs, calibrated recommendations, and your personal visit mesh.
         </p>
       </div>
@@ -71,7 +71,7 @@ export default function DashboardHome() {
         ].map(([label, val], i) => (
           <GlassCard key={label} delay={i * 0.04} className="p-4">
             <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
-            <div className="mt-3 font-display text-2xl font-semibold text-white">
+            <div className="mt-3 font-display text-2xl font-semibold text-[#111827]">
               <AnimatedNumber value={val} />
             </div>
           </GlassCard>
@@ -93,7 +93,7 @@ export default function DashboardHome() {
                   innerRadius={62}
                   outerRadius={92}
                   paddingAngle={5}
-                  stroke="#0B1120"
+                  stroke="#e5e7eb"
                 >
                   {pieData.map((_, i) => (
                     <Cell key={i} fill={colors[i % colors.length]} />
@@ -102,9 +102,10 @@ export default function DashboardHome() {
                 <Tooltip
                   contentStyle={{
                     borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,.08)",
-                    background: "#111827",
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
                     fontSize: 12,
+                    color: "#111827",
                   }}
                 />
               </PieChart>
@@ -123,15 +124,16 @@ export default function DashboardHome() {
                     <stop offset="100%" stopColor="#06B6D4" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="day" stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                <YAxis stroke="#64748b" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="day" stroke="#64748b" tick={{ fill: "#64748b", fontSize: 11 }} />
+                <YAxis stroke="#64748b" tick={{ fill: "#64748b", fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{
                     borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,.08)",
-                    background: "#111827",
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
                     fontSize: 12,
+                    color: "#111827",
                   }}
                 />
                 <Area
@@ -153,7 +155,7 @@ export default function DashboardHome() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Recent voyages</div>
-              <div className="mt-1 font-display text-xl font-semibold text-white">
+              <div className="mt-1 font-display text-xl font-semibold text-[#111827]">
                 Latest storefront stops
               </div>
             </div>
@@ -163,7 +165,7 @@ export default function DashboardHome() {
               <Link
                 key={`${v.at}-${v.productId}`}
                 to={`/marketplace/products/${v.productId}`}
-                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm hover:border-hub-violet/40"
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-[#F8FAFC] p-3 text-sm hover:border-violet-300"
               >
                 <img
                   src={v.heroImage}
@@ -171,8 +173,8 @@ export default function DashboardHome() {
                   className="h-12 w-16 rounded-lg object-cover"
                 />
                 <div className="flex-1">
-                  <div className="font-medium text-white">{v.productName}</div>
-                  <div className="text-xs text-slate-400">{v.companyName}</div>
+                  <div className="font-medium text-[#111827]">{v.productName}</div>
+                  <div className="text-xs text-[#6B7280]">{v.companyName}</div>
                 </div>
                 <div className="text-[10px] uppercase tracking-wider text-slate-500">
                   {new Date(v.at).toLocaleString()}
@@ -180,7 +182,7 @@ export default function DashboardHome() {
               </Link>
             ))}
             {sum.recentVisits.length === 0 && (
-              <div className="text-sm text-slate-400">Explore the marketplace — visits appear here.</div>
+              <div className="text-sm text-[#6B7280]">Explore the marketplace — visits appear here.</div>
             )}
           </div>
         </GlassCard>
@@ -191,7 +193,7 @@ export default function DashboardHome() {
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                 Recommendation rail
               </div>
-              <div className="mt-1 font-display text-xl font-semibold text-white">
+              <div className="mt-1 font-display text-xl font-semibold text-[#111827]">
                 Trending services
               </div>
             </div>
@@ -201,7 +203,7 @@ export default function DashboardHome() {
               <Link
                 key={p.id}
                 to={`/marketplace/products/${p.id}`}
-                className="flex items-center gap-4 rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-transparent p-4 hover:border-hub-cyan/40"
+                className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 hover:border-cyan-300"
               >
                 <img
                   src={p.heroImage}
@@ -209,9 +211,9 @@ export default function DashboardHome() {
                   className="h-14 w-20 rounded-xl object-cover"
                 />
                 <div>
-                  <div className="text-sm font-semibold text-white">{p.name}</div>
-                  <div className="text-xs text-slate-400">{p.companyName}</div>
-                  <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-hub-cyan">
+                  <div className="text-sm font-semibold text-[#111827]">{p.name}</div>
+                  <div className="text-xs text-[#6B7280]">{p.companyName}</div>
+                  <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-cyan-700">
                     AI surfaced · harmonic match
                   </div>
                 </div>
@@ -232,23 +234,23 @@ export default function DashboardHome() {
               .map((a, idx) => (
                 <div
                   key={`${a.at}-${idx}`}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs"
+                  className="rounded-xl border border-slate-200 bg-[#F8FAFC] px-4 py-3 text-xs"
                 >
-                  <span className="inline-flex rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-hub-cyan">
+                  <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-violet-700">
                     {a.type}
                   </span>
-                  <div className="mt-2 text-sm text-slate-200">{a.label}</div>
+                  <div className="mt-2 text-sm text-[#111827]">{a.label}</div>
                   <div className="mt-1 text-[10px] text-slate-500">
                     {new Date(a.at).toLocaleString()}
                   </div>
                 </div>
               ))}
             {(!sum.activityTimeline || sum.activityTimeline.length === 0) && (
-              <div className="text-sm text-slate-400">Activity will accumulate as you explore.</div>
+              <div className="text-sm text-[#6B7280]">Activity will accumulate as you explore.</div>
             )}
           </div>
-          <div className="rounded-2xl border border-dashed border-white/15 bg-gradient-to-br from-hub-violet/15 via-transparent to-hub-cyan/15 p-5 text-xs text-slate-300 leading-relaxed">
-            <span className="font-semibold text-white">Neo-personalizer</span> blends harmonic visits,
+          <div className="rounded-2xl border border-dashed border-violet-200 bg-gradient-to-br from-violet-50/80 via-white to-cyan-50/60 p-5 text-xs leading-relaxed text-[#6B7280]">
+            <span className="font-semibold text-[#111827]">Neo-personalizer</span> blends harmonic visits,
             latent category affinity, review tone, and recency spikes to reorder what you explore
             next — mirroring Fortune-500 personalization stacks without the infra tax.
           </div>

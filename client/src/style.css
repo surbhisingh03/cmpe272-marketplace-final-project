@@ -1,0 +1,31 @@
+:root {
+  --grad-hero: linear-gradient(135deg, #1a0533 0%, #0f1a4e 100%);
+  --grad-purple: linear-gradient(135deg, #7c3aed, #4f46e5);
+  --grad-teal: linear-gradient(135deg, #0891b2, #0d9488);
+  --grad-amber: linear-gradient(135deg, #d97706, #dc2626);
+  --grad-pink: linear-gradient(135deg, #db2777, #7c3aed);
+  --grad-cta: linear-gradient(135deg, #a78bfa, #60a5fa);
+  --grad-text: linear-gradient(135deg, #7c3aed, #2563eb);
+  --radius-card: 16px;
+  --radius-btn: 12px;
+  --radius-pill: 20px;
+  --white: #ffffff;
+  --dark-bg: #1a0533;
+  --muted: #6b7280;
+  --border-light: 1px solid rgba(0,0,0,0.07);
+}
+
+.gradient-text {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.15);
+}

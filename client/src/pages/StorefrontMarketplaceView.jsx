@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiExternalLink, FiSearch, FiStar, FiX } from "react-icons/fi";
+import LeaderboardListRow from "../components/marketplace/LeaderboardListRow.jsx";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
 import { apiFetch } from "../lib/api.js";
@@ -271,12 +272,7 @@ export default function StorefrontMarketplaceView({
   const firstProductSlug = products[0]?.slug;
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#eaeef4] text-slate-900 antialiased">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute left-[min(10%,8rem)] top-[-14%] h-[min(48rem,120vw)] w-[min(48rem,120vw)] rounded-full bg-[radial-gradient(circle,rgba(167,139,250,0.14)_0%,transparent_62%)]" />
-        <div className="absolute right-[-6%] bottom-[10%] h-[min(36rem,90vw)] w-[min(36rem,90vw)] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.10)_0%,transparent_64%)]" />
-      </div>
-
+    <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
       <div className="relative z-10">
         <MarketingNav />
 
@@ -405,7 +401,7 @@ export default function StorefrontMarketplaceView({
 
           {/* Section 2 — Top 5 */}
           <section className="mt-12">
-            <h2 className="font-display text-2xl font-bold text-slate-900">Top 5 in this Storefront</h2>
+            <h2 className="font-display text-2xl font-bold text-slate-900">🏆 Top 5 in this Storefront</h2>
             <p className="mt-2 max-w-3xl text-[15px] text-slate-600">
               Top listings based on visits, reviews, and ratings for this company.
             </p>
@@ -415,39 +411,22 @@ export default function StorefrontMarketplaceView({
                 No listings loaded for this storefront.
               </p>
             ) : null}
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {topFive.map((p, idx) => (
-                <article
-                  key={p.id}
-                  className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_40px_-28px_rgba(15,23,42,0.15)] transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
-                    <Media src={p.heroImage} className="h-full w-full object-cover" />
-                    <span className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] text-sm font-black text-white shadow-md ring-2 ring-white">
-                      {idx + 1}
-                    </span>
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col p-4">
-                    <p className="line-clamp-2 text-sm font-bold leading-snug text-slate-900">{p.name}</p>
-                    <p className="mt-2 text-xs text-slate-600">
-                      <span className="font-semibold text-amber-600">
-                        {Number(p.reviewCount || 0) > 0 ? `${Number(p.avgRating || 0).toFixed(1)}★` : "No rating yet"}
-                      </span>
-                      <span className="mx-1.5 text-slate-300">·</span>
-                      {Number(p.reviewCount || 0)} reviews
-                      <span className="mx-1.5 text-slate-300">·</span>
-                      {visitCountLabel(p.visitCount)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => p.slug && navigate(marketplaceListingPath(p.slug))}
-                      className="mt-auto pt-4 text-center text-sm font-bold text-violet-700 underline decoration-violet-300 underline-offset-2 transition hover:text-violet-900"
-                    >
-                      View Details
-                    </button>
-                  </div>
-                </article>
-              ))}
+            <div className="mt-8 max-w-3xl">
+              <ul className="flex list-none flex-col gap-3 p-0">
+                {topFive.map((p, idx) => (
+                  <li key={p.id} className="list-none">
+                    <LeaderboardListRow
+                      rank={idx + 1}
+                      title={p.name}
+                      subtitle={null}
+                      category={p.category}
+                      reviewCount={p.reviewCount}
+                      avgRating={p.avgRating}
+                      to={p.slug ? marketplaceListingPath(p.slug) : `/marketplace/products/${p.id}`}
+                    />
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
 
