@@ -4,14 +4,17 @@
 CREATE TABLE IF NOT EXISTS users (
   id                 SERIAL PRIMARY KEY,
   email              VARCHAR(255) NOT NULL UNIQUE,
-  password_hash      VARCHAR(255) NOT NULL,
+  password_hash      VARCHAR(255) NULL,
   display_name       VARCHAR(120) NOT NULL,
   phone              VARCHAR(40)  NULL,
   preferred_interest VARCHAR(32)  NOT NULL DEFAULT 'all',
   account_type       VARCHAR(32)  NOT NULL DEFAULT 'customer',
   avatar_url         VARCHAR(512) NULL,
+  facebook_id        VARCHAR(64)  NULL,
   created_at         TIMESTAMPTZ  DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_facebook_id ON users (facebook_id) WHERE facebook_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS companies (
   id            SERIAL PRIMARY KEY,

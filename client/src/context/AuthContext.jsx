@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api.js";
+import { computeUserFirstName } from "../lib/personName.js";
 
 const USER_CACHE_KEY = "fh_user";
 
@@ -26,13 +27,24 @@ function writeCachedUser(u) {
 
 function normalizeUser(u) {
   if (!u || typeof u !== "object") return null;
+  const { displayname, firstname, ...rest } = u;
   const id = u.id != null ? u.id : null;
   const role =
     u.role ??
     (u.accountType === "admin" ? "admin" : u.accountType === "customer" ? "customer" : undefined);
-  const displayName = u.displayName ?? u.name ?? "";
-  const name = u.name ?? u.displayName ?? displayName;
-  return { ...u, id, role, name, displayName };
+  const d = String(u.displayName ?? displayname ?? "").trim();
+  const n = String(u.name ?? "").trim();
+  const displayName = d || n;
+  const name = n || d;
+  const merged = {
+    ...rest,
+    id,
+    role,
+    displayName,
+    name,
+  };
+  merged.firstName = computeUserFirstName({ ...merged, firstName: u.firstName ?? firstname });
+  return merged;
 }
 
 export function AuthProvider({ children }) {
@@ -79,20 +91,20 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const loginWithToken = (token, u) => {
+  const loginWithToken = useCallback((token, u) => {
     localStorage.setItem("fh_token", token);
     const normalized = normalizeUser(u);
     writeCachedUser(normalized);
     setUser(normalized);
     setLoading(false);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("fh_token");
     writeCachedUser(null);
     setUser(null);
     setLoading(false);
-  };
+  }, []);
 
   const nu = normalizeUser(user);
   const isAuthenticated = Boolean(nu?.email || (nu?.id != null && String(nu.id) !== ""));

@@ -3,26 +3,15 @@ import { Link, useNavigate } from "react-router-dom";
 import { FiMenu, FiX } from "react-icons/fi";
 import { MARKETPLACE_NAV_LINKS } from "../../constants/marketing.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { userAvatarInitials } from "../../lib/personName.js";
 
 function marketplaceNavbarName(user) {
   if (!user) return "";
-  const raw = user.displayName?.trim();
-  if (raw) return raw.split(/\s+/)[0] || raw;
-  const local = user.email?.split("@")[0]?.trim();
-  return local ? local.charAt(0).toUpperCase() + local.slice(1).toLowerCase() : "";
+  return user.firstName?.trim() || "there";
 }
 
 function marketplaceNavbarInitials(user) {
-  if (!user) return "?";
-  const raw = user.displayName?.trim();
-  if (raw) {
-    const parts = raw.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    if (parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0]}${parts[0][0]}`.toUpperCase();
-  }
-  const email = user.email?.split("@")[0] || "?";
-  return email.slice(0, 2).toUpperCase();
+  return userAvatarInitials(user);
 }
 
 /** White sticky navbar — matches Landing / auth marketing pages */

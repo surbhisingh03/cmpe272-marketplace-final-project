@@ -1,14 +1,13 @@
+import "./env.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import marketplaceRoutes from "./routes/marketplace.js";
 import reviewRoutes from "./routes/reviews.js";
 import userDashboardRoutes from "./routes/userDashboard.js";
 import adminRoutes from "./routes/admin.js";
-
-dotenv.config();
+import { getPool } from "./db.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 5001);
@@ -32,6 +31,8 @@ app.use("/api/marketplace", marketplaceRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/user", userDashboardRoutes);
 app.use("/api/admin", adminRoutes);
+
+getPool();
 
 app.use((err, req, res, next) => {
   console.error(err);

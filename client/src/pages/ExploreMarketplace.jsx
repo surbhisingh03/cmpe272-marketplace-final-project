@@ -18,6 +18,7 @@ import MarketingNav from "../components/layout/MarketingNav.jsx";
 import { apiFetch } from "../lib/api.js";
 import { categoryRibbonLabel, displayCompanyName, marketplaceListingPath, pillarKeyFromCategory } from "../lib/marketplaceDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { userAvatarInitials } from "../lib/personName.js";
 import {
   apiCompanySlugToJourneyCompanyId,
   deriveMostRecentVisitRow,
@@ -45,25 +46,8 @@ function formatReviewWhen(iso) {
   }
 }
 
-function hubMarketplaceFirstName(user) {
-  if (!user) return "";
-  const raw = user.displayName?.trim();
-  if (raw) return raw.split(/\s+/)[0] || raw;
-  const local = user.email?.split("@")[0]?.trim();
-  return local ? local.charAt(0).toUpperCase() + local.slice(1).toLowerCase() : "";
-}
-
 function userActivityInitials(user) {
-  if (!user) return "?";
-  const raw = (user.displayName || user.name || "").trim();
-  if (raw) {
-    const parts = raw.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    if (parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0]}${parts[0][0]}`.toUpperCase();
-  }
-  const email = user.email?.split("@")[0] || "?";
-  return email.slice(0, 2).toUpperCase();
+  return userAvatarInitials(user);
 }
 
 function activityDayStartMs(iso) {
@@ -345,14 +329,34 @@ function MarketplaceListingCard({
   );
 }
 
+const PROFILE_NAME_PROMPT_KEY = "fh_profile_name_prompt_dismissed";
+
 export default function ExploreMarketplace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const allMode = searchParams.get("all") === "1";
   const { isAuthenticated, user, loading: authLoading } = useAuth();
-  const hubFirstName = useMemo(() => hubMarketplaceFirstName(user), [user]);
+  /** First name from auth (OAuth / profile); greeting falls back to “there” when unset. */
+  const hubGreetingName = user?.firstName?.trim() || "there";
   /** Signed-in UX while token hydrates avoids flashing guest CTAs (Create Account / Sign In). */
   const showLoggedInHub = isAuthenticated || authLoading;
+
+  const [hideProfileNamePrompt, setHideProfileNamePrompt] = useState(() => {
+    try {
+      return sessionStorage.getItem(PROFILE_NAME_PROMPT_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissProfileNamePrompt = useCallback(() => {
+    try {
+      sessionStorage.setItem(PROFILE_NAME_PROMPT_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setHideProfileNamePrompt(true);
+  }, []);
 
   const {
     visits,
@@ -702,8 +706,28 @@ export default function ExploreMarketplace() {
                   </p>
                   {showLoggedInHub ? (
                     <>
+                      {isAuthenticated && user && !authLoading && !user?.firstName?.trim() && !hideProfileNamePrompt ? (
+                        <div
+                          role="status"
+                          className="mt-3 rounded-xl border border-amber-200/90 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <p className="min-w-0 flex-1 leading-relaxed">
+                              We don&apos;t have a name on your profile yet. Add your name where you manage your account, or
+                              update your name on the service you used to sign in so we can personalize greetings.
+                            </p>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                              onClick={dismissProfileNamePrompt}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                       <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-slate-900 md:text-[2.15rem]">
-                        Hi {hubFirstName || "there"}, welcome back to FusionHub Marketplace
+                        Hi {hubGreetingName}, welcome back to FusionHub Marketplace
                       </h1>
                       <p className="mt-4 text-[17px] leading-relaxed text-slate-600">
                         Explore Bean &amp; Brew Co., Krativerse, Seaside Travels, and Nexus Academy.{" "}

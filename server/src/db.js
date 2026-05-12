@@ -15,10 +15,8 @@
  *    (`ER_DUP_ENTRY`, `ER_BAD_FIELD_ERROR`) that the existing code branches on
  */
 
-import dotenv from "dotenv";
+import "./env.js";
 import pg from "pg";
-
-dotenv.config();
 
 /* Postgres returns BIGINT and NUMERIC as strings by default; coerce to JS Number
    so existing code that does `Number(x)` (or relies on JSON serialisation) keeps
@@ -148,20 +146,18 @@ class PgAdapter {
 let adapter;
 
 function buildPool() {
-  const databaseUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
-  if (databaseUrl) {
-    return new pg.Pool({
-      connectionString: databaseUrl,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-    });
+  const databaseUrl = (process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "").trim();
+  if (!databaseUrl) {
+    console.error(
+      "FATAL: DATABASE_URL (or SUPABASE_DB_URL) is missing or empty in server/.env.\n" +
+        "  Without it the server used to fall back to 127.0.0.1:5432 and crash on first DB use.\n" +
+        "  Set your Supabase Postgres connection string (see server/.env.example)."
+    );
+    process.exit(1);
   }
   return new pg.Pool({
-    host: process.env.PGHOST || "127.0.0.1",
-    port: Number(process.env.PGPORT || 5432),
-    user: process.env.PGUSER || "postgres",
-    password: process.env.PGPASSWORD ?? "",
-    database: process.env.PGDATABASE || "postgres",
+    connectionString: databaseUrl,
+    ssl: { rejectUnauthorized: false },
     max: 10,
   });
 }

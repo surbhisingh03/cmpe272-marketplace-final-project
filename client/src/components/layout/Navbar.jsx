@@ -4,18 +4,10 @@ import { FiBell, FiMenu, FiMoon, FiSearch, FiSun, FiX } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
+import { userAvatarInitials } from "../../lib/personName.js";
 
 function navbarInitials(user) {
-  if (!user) return "?";
-  const raw = user.displayName?.trim();
-  if (raw) {
-    const parts = raw.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    if (parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0]}${parts[0][0]}`.toUpperCase();
-  }
-  const email = user.email?.split("@")[0] || "?";
-  return email.slice(0, 2).toUpperCase();
+  return userAvatarInitials(user);
 }
 
 const navBarStyle = {
@@ -196,7 +188,7 @@ export default function Navbar({ onSearchCompanies = [], products = [] }) {
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
                 style={{ background: "rgba(255,255,255,0.15)" }}
-                title={user?.displayName || user?.name || user?.email || ""}
+                title={user?.firstName?.trim() || "there"}
                 aria-hidden
               >
                 {initials}
@@ -345,7 +337,7 @@ export default function Navbar({ onSearchCompanies = [], products = [] }) {
                     >
                       {initials}
                     </div>
-                    <span className="truncate text-sm text-white/80">{user?.displayName || user?.name || user?.email}</span>
+                    <span className="truncate text-sm text-white/80">{user?.firstName?.trim() || "there"}</span>
                   </div>
                   <button
                     type="button"

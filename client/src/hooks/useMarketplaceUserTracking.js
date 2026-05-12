@@ -64,7 +64,7 @@ export function useMarketplaceUserTracking(user, isAuthenticated) {
 
   useEffect(() => {
     if (!isAuthenticated || !userKey || !user) return;
-    const label = hubFirstName || user.email?.split("@")[0] || "You";
+    const label = hubFirstName || trackingDisplayFirstName(user) || "You";
     persistCurrentTrackedUser({ userKey, user: label });
   }, [hubFirstName, isAuthenticated, user, userKey]);
 
@@ -131,7 +131,7 @@ export function useMarketplaceUserTracking(user, isAuthenticated) {
       const companyId = apiCompanySlugToJourneyCompanyId(companySlug);
       appendLocalReview({
         userKey,
-        user: hubFirstName || user.email?.split("@")[0] || "You",
+        user: hubFirstName || trackingDisplayFirstName(user) || "You",
         productId,
         productSlug: productSlug || null,
         companyId,

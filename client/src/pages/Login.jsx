@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout.jsx";
 import PasswordField, { AUTH_TEXT_INPUT_CLASS } from "../components/auth/PasswordField.jsx";
-import { apiFetch } from "../lib/api.js";
+import { apiFetch, facebookOAuthStartUrl, fetchFacebookLoginEnabled } from "../lib/api.js";
+import { safeInternalPath } from "../lib/safeInternalPath.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const REMEMBER_KEY = "fh_login_remember";
@@ -23,6 +24,7 @@ const submitBtnStyle = {
 export default function Login() {
   const { loginWithToken } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +32,75 @@ export default function Login() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [busy, setBusy] = useState(false);
+  const [facebookEnabled, setFacebookEnabled] = useState(null);
+
+  const postLoginPath =
+    typeof location.state?.from === "string" ? location.state.from : "/marketplace/explore";
+  const facebookStartHref = facebookOAuthStartUrl(safeInternalPath(postLoginPath));
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchFacebookLoginEnabled().then((ok) => {
+      if (!cancelled) setFacebookEnabled(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    const nextPath = safeInternalPath(search.get("next") || "/marketplace/explore");
+    const fbErr = search.get("facebook_error");
+    if (fbErr) {
+      setError(fbErr);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
+    const hash = window.location.hash?.replace(/^#/, "") || "";
+    if (!hash) return;
+    const hp = new URLSearchParams(hash);
+    const token = hp.get("token");
+    if (!token) return;
+
+    /* Do not strip the hash until login succeeds. React StrictMode re-runs this effect;
+       clearing the hash early makes the second pass a no-op and skips navigation. */
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      setError("");
+      try {
+        localStorage.setItem("fh_token", token);
+        const me = await apiFetch("/api/auth/me");
+        const role = me.role ?? (me.accountType === "admin" ? "admin" : "customer");
+        loginWithToken(token, {
+          id: me.id,
+          email: me.email,
+          name: me.name ?? me.displayName,
+          displayName: me.displayName ?? me.name,
+          avatarUrl: me.avatarUrl,
+          preferredInterest: me.preferredInterest,
+          accountType: me.accountType,
+          role,
+        });
+        if (!cancelled) {
+          const pathOnly = `${window.location.pathname}${window.location.search}`;
+          window.history.replaceState(null, "", pathOnly);
+          navigate(role === "admin" ? "/admin" : nextPath, { replace: true });
+        }
+      } catch (err) {
+        localStorage.removeItem("fh_token");
+        if (!cancelled) {
+          setError(err.payload?.error || err.message || "Facebook sign-in failed");
+        }
+      } finally {
+        setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loginWithToken, navigate]);
 
   useEffect(() => {
     try {
@@ -213,18 +284,37 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-8 flex items-center gap-3">
-          <div className="h-px flex-1 bg-[#e5e7eb]" />
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">or</span>
-          <div className="h-px flex-1 bg-[#e5e7eb]" />
-        </div>
+        {facebookEnabled === true ? (
+          <>
+            <div className="mt-8 flex items-center gap-3">
+              <div className="h-px flex-1 bg-[#e5e7eb]" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">or</span>
+              <div className="h-px flex-1 bg-[#e5e7eb]" />
+            </div>
+
+            <a
+              href={facebookStartHref}
+              className="mt-6 flex h-[44px] w-full items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-[#1877F2]/40 bg-white text-[14px] font-semibold text-[#1877F2] transition hover:bg-[#1877F2]/5"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden className="shrink-0">
+                <path
+                  fill="currentColor"
+                  d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+                />
+              </svg>
+              Continue with Facebook
+            </a>
+          </>
+        ) : null}
 
         <button
           type="button"
           name="demo_continue"
           disabled={busy}
           onClick={onDemoContinue}
-          className="mt-6 h-[44px] w-full rounded-[10px] border-[1.5px] border-[#e5e7eb] bg-white text-[14px] font-semibold text-slate-800 transition hover:border-[#7c3aed]/40 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-50"
+          className={`h-[44px] w-full rounded-[10px] border-[1.5px] border-[#e5e7eb] bg-white text-[14px] font-semibold text-slate-800 transition hover:border-[#7c3aed]/40 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-50 ${
+            facebookEnabled === true ? "mt-4" : "mt-8"
+          }`}
         >
           Continue as Demo User
         </button>

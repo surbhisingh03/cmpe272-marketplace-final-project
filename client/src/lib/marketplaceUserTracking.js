@@ -8,6 +8,8 @@ import {
   readAnalyticsVisits,
   clearAnalyticsStorage,
 } from "./fusionhubAnalytics.js";
+import { oauthEmailLocalPartAsName, isSyntheticFacebookPlaceholderEmail } from "./oauthPlaceholderEmail.js";
+import { firstValidTokenFromUser, isValidPersonFirstNameToken } from "./personName.js";
 
 export { LS_ANALYTICS_REVIEWS, LS_ANALYTICS_VISITS };
 
@@ -283,16 +285,19 @@ export function countLocalReviewsForUser(userKey) {
 }
 
 export function trackingDisplayFirstName(user) {
-  const name = user?.displayName?.trim();
-  if (name) return name.split(/\s+/)[0] || name;
-  const local = user?.email?.split("@")[0]?.trim();
-  if (local) return local.charAt(0).toUpperCase() + local.slice(1).toLowerCase();
+  const fn = String(user?.firstName ?? user?.firstname ?? "").trim();
+  if (fn && isValidPersonFirstNameToken(fn)) return fn;
+  const fromName = firstValidTokenFromUser(user);
+  if (fromName) return fromName;
+  if (isSyntheticFacebookPlaceholderEmail(user?.email || "")) return "";
+  const fromEmail = oauthEmailLocalPartAsName(user?.email || "");
+  if (fromEmail && isValidPersonFirstNameToken(fromEmail)) return fromEmail;
   return "";
 }
 
 function displayUserLabel(user, hubFirstName) {
   const f = hubFirstName?.trim();
-  if (f) return f;
+  if (f && isValidPersonFirstNameToken(f)) return f;
   const fromUser = trackingDisplayFirstName(user);
   if (fromUser) return fromUser;
   return "You";

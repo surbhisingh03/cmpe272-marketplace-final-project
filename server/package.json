@@ -6,7 +6,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "seed": "node scripts/seed.js",
-    "migrate:users": "node scripts/migrateUsersProfile.js"
+    "migrate:users": "node scripts/migrateUsersProfile.js",
+    "migrate:facebook": "node scripts/migrateFacebookAuth.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
