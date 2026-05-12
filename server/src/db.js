@@ -13,6 +13,8 @@
  *  - MySQL-only date helpers (CURDATE, INTERVAL N DAY) are rewritten
  *  - Postgres unique/column errors are normalised to the MySQL codes
  *    (`ER_DUP_ENTRY`, `ER_BAD_FIELD_ERROR`) that the existing code branches on
+ *  - camelCase `AS` aliases are auto-quoted so columns round-trip as
+ *    camelCase in JSON (Postgres would otherwise lowercase the keys)
  */
 
 import "./env.js";
@@ -32,6 +34,16 @@ function rewriteMysqlisms(sql) {
 
   out = out.replace(/\bCURDATE\s*\(\s*\)/gi, "CURRENT_DATE");
   out = out.replace(/\bINTERVAL\s+(\d+)\s+DAY\b/gi, "INTERVAL '$1 day'");
+
+  /* MySQL preserves case in unquoted column aliases (e.g. `AS heroImage`),
+     but Postgres folds unquoted identifiers to lowercase. The existing
+     routes return JSON with camelCase keys (heroImage, visitCount, …) and
+     the React client reads those keys verbatim. Auto-quote any AS alias
+     that contains an uppercase letter so column-case round-trips intact. */
+  out = out.replace(
+    /\b(AS)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    (match, as, ident) => (/[A-Z]/.test(ident) ? `${as} "${ident}"` : match)
+  );
 
   if (/\bINSERT\s+IGNORE\s+INTO\b/i.test(out)) {
     out = out.replace(/\bINSERT\s+IGNORE\s+INTO\b/i, "INSERT INTO");
