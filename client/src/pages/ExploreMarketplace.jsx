@@ -89,7 +89,7 @@ const ACTIVITY_COMPANY_FILTERS = [
   { slug: "all", label: "All" },
   { slug: "nexus-academy", label: "Nexus Academy" },
   { slug: "travel-agency", label: "Travel Agency" },
-  { slug: "srikavya-enterprise", label: "Kavya's Co." },
+  { slug: "srikavya-enterprise", label: "Bean & Brew Co." },
   { slug: "krativerse", label: "Krativerse" },
 ];
 

@@ -6,7 +6,7 @@ const BENEFIT_LINES = [
   "Pick up your marketplace journey on any device, anytime.",
 ];
 
-const COMPANY_PILLS = ["Nexus Academy", "Travel Agency", "Kavya's site", "Krativerse"];
+const COMPANY_PILLS = ["Nexus Academy", "Travel Agency", "Bean & Brew", "Krativerse"];
 
 const panelGrad = "linear-gradient(135deg, #1a0533 0%, #0f1a4e 100%)";
 

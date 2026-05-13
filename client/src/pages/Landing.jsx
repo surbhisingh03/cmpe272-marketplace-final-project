@@ -31,7 +31,7 @@ const MEMBER_COMPANY_CARDS = [
   },
   {
     slug: "srikavya-enterprise",
-    title: "Kavya's site",
+    title: "Bean & Brew",
     member: "Kavya",
     emoji: "☕",
     gradient: "linear-gradient(135deg, #d97706, #dc2626)",

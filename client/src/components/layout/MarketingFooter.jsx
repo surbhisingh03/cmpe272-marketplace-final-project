@@ -13,7 +13,7 @@ const memberLinkClass =
 const MEMBER_COMPANIES = [
   { journeyId: "nexus-academy", label: "Nexus Academy" },
   { journeyId: "seaside-travels", label: "Travel Agency" },
-  { journeyId: "bean-brew", label: "Kavya's Co." },
+  { journeyId: "bean-brew", label: "Bean & Brew Co." },
   { journeyId: "krativerse", label: "Krativerse" },
 ];
 
