@@ -49,7 +49,8 @@ router.get("/catalog", async (req, res) => {
       c.name AS companyName,
       c.external_url AS companyUrl,
       ROUND(COALESCE(agg.avg_rating, 0), 2) AS avgRating,
-      COALESCE(agg.rc, 0) AS reviewCount
+      COALESCE(agg.rc, 0) AS reviewCount,
+      (SELECT COUNT(*) FROM favorites f WHERE f.product_id = p.id) AS favoriteCount
     FROM products p
     JOIN companies c ON c.id = p.company_id
     LEFT JOIN (
@@ -138,6 +139,17 @@ router.get("/products/:id", optionalAuth, async (req, res) => {
     { pid: id }
   );
 
+  let favoriteCount = 0;
+  try {
+    const [[favRow]] = await pool.query(
+      "SELECT COUNT(*) AS c FROM favorites WHERE product_id = :pid",
+      { pid: id }
+    );
+    favoriteCount = Number(favRow?.c ?? 0) || 0;
+  } catch {
+    /* ignore */
+  }
+
   const [relatedRows] = await pool.query(
     `SELECT id, slug, name, excerpt, hero_image AS heroImage, visit_count AS visitCount
      FROM products WHERE company_id = :cid AND id != :pid
@@ -146,7 +158,7 @@ router.get("/products/:id", optionalAuth, async (req, res) => {
   );
 
   res.json({
-    product: { ...product, uniqueVisitorCount: Number(visitorCount) || 0 },
+    product: { ...product, uniqueVisitorCount: Number(visitorCount) || 0, favoriteCount },
     ratingStats: { average: Number(stats.avg) || 0, count: stats.cnt },
     related: relatedRows,
   });
@@ -190,6 +202,17 @@ router.get("/listing/:slug", optionalAuth, async (req, res) => {
     { pid: id }
   );
 
+  let favoriteCount = 0;
+  try {
+    const [[favRow]] = await pool.query(
+      "SELECT COUNT(*) AS c FROM favorites WHERE product_id = :pid",
+      { pid: id }
+    );
+    favoriteCount = Number(favRow?.c ?? 0) || 0;
+  } catch {
+    /* ignore */
+  }
+
   const [relatedRows] = await pool.query(
     `SELECT id, slug, name, excerpt, hero_image AS heroImage, visit_count AS visitCount, category
      FROM products WHERE company_id = :cid AND id != :pid
@@ -198,7 +221,7 @@ router.get("/listing/:slug", optionalAuth, async (req, res) => {
   );
 
   res.json({
-    product: { ...product, uniqueVisitorCount: Number(visitorCount) || 0 },
+    product: { ...product, uniqueVisitorCount: Number(visitorCount) || 0, favoriteCount },
     ratingStats: { average: Number(stats.avg) || 0, count: stats.cnt },
     related: relatedRows,
   });

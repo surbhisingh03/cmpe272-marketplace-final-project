@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FiArrowRight,
@@ -7,6 +7,7 @@ import {
   FiEdit3,
   FiExternalLink,
   FiEye,
+  FiPackage,
   FiSearch,
   FiStar,
   FiX,
@@ -34,6 +35,7 @@ import {
   getProductAnalytics,
   getProductReviewDetail,
   readAnalyticsReviews,
+  readAnalyticsVisits,
   subscribeAnalyticsUpdated,
 } from "../lib/fusionhubAnalytics.js";
 import { calculateEngagementScore } from "../lib/engagementScore.js";
@@ -171,37 +173,6 @@ const FEATURED_SPECS = [
   { slug: "web-development-design", displayName: "Web Development Bootcamp" },
 ];
 
-const PARTNER_CARD_ACCENTS = {
-  "srikavya-enterprise": {
-    tint: "from-amber-500/92 via-orange-950/92 to-[#3d2414]/96",
-    iconWrap: "bg-amber-100 text-amber-950 ring-2 ring-amber-300/70",
-    statPill: "bg-white/20 text-white ring-white/35 backdrop-blur-sm",
-    ring: "hover:ring-2 hover:ring-amber-400/80",
-    ctaGlow: "shadow-[0_20px_50px_-22px_rgba(180,83,9,0.55)]",
-  },
-  krativerse: {
-    tint: "from-violet-600/92 via-purple-950/94 to-[#2e1068]/96",
-    iconWrap: "bg-violet-100 text-violet-950 ring-2 ring-violet-300/80",
-    statPill: "bg-white/20 text-white ring-white/35 backdrop-blur-sm",
-    ring: "hover:ring-2 hover:ring-violet-400/80",
-    ctaGlow: "shadow-[0_20px_50px_-22px_rgba(124,58,237,0.5)]",
-  },
-  "travel-agency": {
-    tint: "from-sky-500/92 via-cyan-800/93 to-[#0e4f6b]/96",
-    iconWrap: "bg-sky-100 text-sky-950 ring-2 ring-sky-300/75",
-    statPill: "bg-white/20 text-white ring-white/35 backdrop-blur-sm",
-    ring: "hover:ring-2 hover:ring-sky-400/80",
-    ctaGlow: "shadow-[0_20px_50px_-22px_rgba(14,165,233,0.45)]",
-  },
-  "nexus-academy": {
-    tint: "from-emerald-500/90 via-teal-900/93 to-[#064e3b]/96",
-    iconWrap: "bg-emerald-100 text-emerald-950 ring-2 ring-emerald-300/75",
-    statPill: "bg-white/20 text-white ring-white/35 backdrop-blur-sm",
-    ring: "hover:ring-2 hover:ring-emerald-400/80",
-    ctaGlow: "shadow-[0_20px_50px_-22px_rgba(16,185,129,0.48)]",
-  },
-};
-
 const PARTNER_WEBSITE_FALLBACK = {
   "srikavya-enterprise": "https://srikavyagelli.com/index.php",
   krativerse: "https://krativerse.com/",
@@ -214,6 +185,21 @@ const HUB_JOURNEY_VISITED_STYLES = {
   krativerse: "bg-violet-50 text-violet-950 ring-2 ring-violet-400/75 shadow-sm",
   "travel-agency": "bg-sky-50 text-sky-950 ring-2 ring-sky-400/75 shadow-sm",
   "nexus-academy": "bg-emerald-50 text-emerald-950 ring-2 ring-emerald-400/75 shadow-sm",
+};
+
+/** Bold card gradients (one per partner) + storefront CTA hover polish */
+const PARTNER_STORE_CARD_GRADIENT = {
+  "srikavya-enterprise": "bg-gradient-to-br from-amber-500 via-orange-600 to-red-700",
+  krativerse: "bg-gradient-to-br from-purple-600 via-violet-600 to-indigo-900",
+  "travel-agency": "bg-gradient-to-br from-cyan-500 via-teal-500 to-teal-900",
+  "nexus-academy": "bg-gradient-to-br from-pink-500 via-fuchsia-600 to-purple-900",
+};
+
+const PARTNER_OWNER_DISPLAY = {
+  "srikavya-enterprise": "Geeshitha Gelli",
+  krativerse: "Surbhi",
+  "travel-agency": "Surbhi Singh",
+  "nexus-academy": "Geeshitha",
 };
 
 // Listing analytics use localStorage (fusionhub_visits / fusionhub_reviews); see itemsLive in ExploreMarketplace.
@@ -234,6 +220,11 @@ function sortList(list, key) {
     }
   });
   return out;
+}
+
+function easeOutQuart(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return 1 - (1 - x) ** 4;
 }
 
 function Media({ src, className }) {
@@ -404,6 +395,60 @@ export default function ExploreMarketplace() {
     return off;
   }, []);
 
+  const [hubHeroSearchQuery, setHubHeroSearchQuery] = useState("");
+  const [hubHeroSearchDebounced, setHubHeroSearchDebounced] = useState("");
+  const [hubHeroDropdownOpen, setHubHeroDropdownOpen] = useState(false);
+  const hubHeroWrapRef = useRef(null);
+  const hubHeroInputRef = useRef(null);
+
+  const [allListingsSuggestDebounced, setAllListingsSuggestDebounced] = useState("");
+  const [allListingsDropdownOpen, setAllListingsDropdownOpen] = useState(false);
+  const allListingsSearchWrapRef = useRef(null);
+
+  const [browseStatAnim, setBrowseStatAnim] = useState({
+    totalProducts: 0,
+    activeUsers: 0,
+    totalReviews: 0,
+    avgRating: 0,
+  });
+
+  const [myReviewVisibleCount, setMyReviewVisibleCount] = useState(5);
+  const [timelineInView, setTimelineInView] = useState(false);
+  const timelineRootRef = useRef(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setHubHeroSearchDebounced(hubHeroSearchQuery), 200);
+    return () => clearTimeout(t);
+  }, [hubHeroSearchQuery]);
+
+  useEffect(() => {
+    if (!allMode) return;
+    const t = setTimeout(() => setAllListingsSuggestDebounced(q.trim()), 200);
+    return () => clearTimeout(t);
+  }, [q, allMode]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      setHubHeroDropdownOpen(false);
+      setAllListingsDropdownOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      const t = e.target;
+      if (hubHeroWrapRef.current && !hubHeroWrapRef.current.contains(t)) setHubHeroDropdownOpen(false);
+      if (allListingsSearchWrapRef.current && !allListingsSearchWrapRef.current.contains(t)) {
+        setAllListingsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -568,6 +613,119 @@ export default function ExploreMarketplace() {
 
   const journeyActivityGroups = useMemo(() => groupJourneyItemsByDay(filteredJourneyActivity), [filteredJourneyActivity]);
 
+  const browseHubStatTargets = useMemo(() => {
+    void analyticsTick;
+    if (!itemsLive.length) {
+      return { totalProducts: 0, activeUsers: 0, totalReviews: 0, avgRating: 0 };
+    }
+    const totalProducts = itemsLive.length;
+    const users = new Set();
+    for (const r of readAnalyticsReviews()) {
+      if (r.userId) users.add(r.userId);
+    }
+    for (const v of readAnalyticsVisits()) {
+      if (v.userId) users.add(v.userId);
+    }
+    const totalReviews = itemsLive.reduce((a, x) => a + Number(x.reviewCount || 0), 0);
+    let sum = 0;
+    let cnt = 0;
+    for (const it of itemsLive) {
+      const rc = Number(it.reviewCount || 0);
+      if (rc > 0) {
+        sum += Number(it.avgRating || 0) * rc;
+        cnt += rc;
+      }
+    }
+    const avgRating = cnt > 0 ? sum / cnt : 0;
+    return { totalProducts, activeUsers: users.size, totalReviews, avgRating };
+  }, [itemsLive, analyticsTick]);
+
+  useEffect(() => {
+    if (allMode) return;
+    const targets = browseHubStatTargets;
+    const start = performance.now();
+    const duration = 1500;
+    let rafId = 0;
+    const tick = (now) => {
+      const u = Math.min(1, (now - start) / duration);
+      const t = easeOutQuart(u);
+      setBrowseStatAnim({
+        totalProducts: Math.round(targets.totalProducts * t),
+        activeUsers: Math.round(targets.activeUsers * t),
+        totalReviews: Math.round(targets.totalReviews * t),
+        avgRating: targets.avgRating * t,
+      });
+      if (u < 1) rafId = requestAnimationFrame(tick);
+      else {
+        setBrowseStatAnim({
+          totalProducts: targets.totalProducts,
+          activeUsers: targets.activeUsers,
+          totalReviews: targets.totalReviews,
+          avgRating: targets.avgRating,
+        });
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [allMode, browseHubStatTargets]);
+
+  const hubHeroSuggest = useMemo(() => {
+    const s = hubHeroSearchDebounced.trim().toLowerCase();
+    if (!s) return { companies: [], products: [] };
+    const companies = PARTNERS.filter((p) => {
+      const blob = `${p.name} ${p.category} ${displayCompanyName(p.slug)}`.toLowerCase();
+      return blob.includes(s);
+    }).slice(0, 6);
+    const products = itemsLive.filter((it) => {
+      const blob = `${it.name} ${it.excerpt || ""} ${displayCompanyName(it.companySlug)}`.toLowerCase();
+      return blob.includes(s);
+    }).slice(0, 8);
+    return { companies, products };
+  }, [hubHeroSearchDebounced, itemsLive]);
+
+  const allListingsSuggest = useMemo(() => {
+    const s = allListingsSuggestDebounced.trim().toLowerCase();
+    if (!s) return { companies: [], products: [] };
+    const companies = PARTNERS.filter((p) => {
+      const blob = `${p.name} ${p.category} ${displayCompanyName(p.slug)}`.toLowerCase();
+      return blob.includes(s);
+    }).slice(0, 6);
+    const products = itemsLive.filter((it) => {
+      const blob = `${it.name} ${it.excerpt || ""} ${displayCompanyName(it.companySlug)}`.toLowerCase();
+      return blob.includes(s);
+    }).slice(0, 8);
+    return { companies, products };
+  }, [allListingsSuggestDebounced, itemsLive]);
+
+  const myReviewsFeedSorted = useMemo(() => {
+    void analyticsTick;
+    if (!trackingUserKey) return [];
+    return [...readAnalyticsReviews()]
+      .filter((r) => r.userId === trackingUserKey)
+      .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+  }, [analyticsTick, trackingUserKey]);
+
+  useEffect(() => {
+    setMyReviewVisibleCount(5);
+  }, [myReviewsFeedSorted.length, trackingUserKey]);
+
+  useEffect(() => {
+    setTimelineInView(false);
+  }, [activityCompanyFilter]);
+
+  useEffect(() => {
+    const root = timelineRootRef.current;
+    if (!root || !isAuthenticated) return undefined;
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) setTimelineInView(true);
+      },
+      { threshold: 0.06, rootMargin: "0px 0px -5% 0px" },
+    );
+    obs.observe(root);
+    return () => obs.disconnect();
+  }, [isAuthenticated, filteredJourneyActivity.length, journeyActivityGroups.length]);
+
   const partnerCompaniesVisited = visitedJourneyCompanyIds.size;
   const partnerCompaniesRemaining = Math.max(0, PARTNERS.length - partnerCompaniesVisited);
 
@@ -693,12 +851,195 @@ export default function ExploreMarketplace() {
     <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
       <div className="relative z-10">
         <MarketingNav />
+        <style>{`
+                @keyframes fh-marquee {
+                  0% { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+                @keyframes fh-partner-shine {
+                  0% { opacity: 0; transform: skewX(-18deg) translateX(-120%); }
+                  20% { opacity: 0.85; }
+                  100% { opacity: 0; transform: skewX(-18deg) translateX(220%); }
+                }
+                .fh-explore-marquee-track {
+                  display: flex;
+                  gap: 4rem;
+                  width: max-content;
+                  align-items: center;
+                  animation: fh-marquee 48s linear infinite;
+                }
+                .fh-explore-marquee-wrap:hover .fh-explore-marquee-track {
+                  animation-play-state: paused;
+                }
+                .fh-partner-shine-layer::before {
+                  content: "";
+                  position: absolute;
+                  inset: 0;
+                  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.42), transparent);
+                  transform: skewX(-18deg) translateX(-130%);
+                  opacity: 0;
+                  pointer-events: none;
+                }
+                .fh-partner-card-wrap:hover .fh-partner-shine-layer::before {
+                  animation: fh-partner-shine 0.9s ease-out forwards;
+                }
+                @keyframes fh-hub-dropdown-in {
+                  from { opacity: 0; transform: translateY(0.25rem); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
+                .fh-hub-dropdown-in {
+                  animation: fh-hub-dropdown-in 0.2s ease-out both;
+                }
+              `}</style>
 
       {!allMode ? (
         <>
           {/* SECTION 1 — Marketplace Hub Hero */}
           <section className={`${SHELL} pt-8 pb-5`}>
             <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-8 shadow-[0_20px_55px_-28px_rgba(15,23,42,0.18)] lg:p-10">
+
+              <div ref={hubHeroWrapRef} className="relative z-[5] mb-8 w-full">
+                <label className="sr-only" htmlFor="hub-hero-marketplace-search">
+                  Search companies and products
+                </label>
+                <div className="relative">
+                  <FiSearch className="pointer-events-none absolute left-5 top-1/2 z-[1] h-6 w-6 -translate-y-1/2 text-slate-400" aria-hidden />
+                  <input
+                    id="hub-hero-marketplace-search"
+                    ref={hubHeroInputRef}
+                    type="search"
+                    autoComplete="off"
+                    placeholder="Search companies, products, and services…"
+                    value={hubHeroSearchQuery}
+                    onChange={(e) => {
+                      setHubHeroSearchQuery(e.target.value);
+                      setHubHeroDropdownOpen(true);
+                    }}
+                    onFocus={() => {
+                      if (hubHeroSearchDebounced.trim()) setHubHeroDropdownOpen(true);
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/90 py-4 pl-14 pr-12 text-base font-medium text-slate-900 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-transparent focus:bg-white focus:shadow-lg focus:shadow-purple-500/20 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                  />
+                  {hubHeroSearchQuery ? (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      onClick={() => {
+                        setHubHeroSearchQuery("");
+                        setHubHeroDropdownOpen(false);
+                        hubHeroInputRef.current?.focus();
+                      }}
+                    >
+                      <FiX className="h-5 w-5" aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+                {hubHeroDropdownOpen &&
+                hubHeroSearchDebounced.trim() &&
+                (hubHeroSuggest.companies.length > 0 || hubHeroSuggest.products.length > 0) ? (
+                  <div
+                    className="fh-hub-dropdown-in absolute left-0 right-0 top-full z-20 mt-2 max-h-[min(24rem,70vh)] overflow-y-auto rounded-2xl border border-slate-200/90 bg-white py-2 shadow-xl shadow-slate-900/10"
+                    role="listbox"
+                  >
+                    {hubHeroSuggest.companies.length > 0 ? (
+                      <div className="px-2 pt-1">
+                        <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Companies</p>
+                        <ul className="flex flex-col gap-0.5 p-0">
+                          {hubHeroSuggest.companies.map((corp) => {
+                            const Icon = corp.icon;
+                            const journeyId = apiCompanySlugToJourneyCompanyId(corp.slug);
+                            const to = journeyId ? partnerStorefrontPath(journeyId) : `/marketplace/companies/${corp.slug}`;
+                            return (
+                              <li key={corp.slug} className="list-none">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-violet-50"
+                                  onClick={() => {
+                                    setHubHeroDropdownOpen(false);
+                                    setHubHeroSearchQuery("");
+                                    navigate(to);
+                                  }}
+                                >
+                                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-800">
+                                    <Icon className="h-5 w-5" aria-hidden />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate font-semibold text-slate-900">{corp.name}</span>
+                                    <span className="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                      {categoryRibbonLabel(corp.category)}
+                                    </span>
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {hubHeroSuggest.products.length > 0 ? (
+                      <div className="px-2 pb-1 pt-2">
+                        <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Products</p>
+                        <ul className="flex flex-col gap-0.5 p-0">
+                          {hubHeroSuggest.products.map((it) => (
+                            <li key={it.id} className="list-none">
+                              <button
+                                type="button"
+                                role="option"
+                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-violet-50"
+                                onClick={() => {
+                                  setHubHeroDropdownOpen(false);
+                                  setHubHeroSearchQuery("");
+                                  openListingOrStorefront(it);
+                                }}
+                              >
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800">
+                                  <FiPackage className="h-5 w-5" aria-hidden />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate font-semibold text-slate-900">{it.name}</span>
+                                  <span className="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                                    {categoryRibbonLabel(it.category)}
+                                  </span>
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
+                {[
+                  { label: "Total Products", value: browseStatAnim.totalProducts, format: "int" },
+                  { label: "Active Users", value: browseStatAnim.activeUsers, format: "int" },
+                  { label: "Reviews", value: browseStatAnim.totalReviews, format: "int" },
+                  {
+                    label: "Avg Rating",
+                    value: browseHubStatTargets.avgRating > 0 ? browseStatAnim.avgRating : 0,
+                    format: "avg",
+                  },
+                ].map((card) => (
+                  <div
+                    key={card.label}
+                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{card.label}</p>
+                    <p className="mt-2 text-3xl font-black tabular-nums tracking-tight text-transparent bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text">
+                      {card.format === "avg"
+                        ? browseHubStatTargets.avgRating > 0
+                          ? card.value.toFixed(1)
+                          : "—"
+                        : card.value.toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
                 <div className="flex flex-col justify-center">
                   <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-violet-600">
@@ -1043,68 +1384,85 @@ export default function ExploreMarketplace() {
                     No visits for this company yet. Try another filter or explore the marketplace.
                   </p>
                 ) : (
-                  <div className="mt-6">
-                    {journeyActivityGroups.map((g) => (
-                      <div key={g.key} className="mb-2">
-                        <div className="sticky top-0 z-[2] -mx-1 bg-[#f4f6fb]/90 px-1 py-1 backdrop-blur-sm">
-                          <span
-                            className="inline-block rounded-[20px] bg-[#f9fafb] px-3 py-1 text-[11px] font-bold text-[#9ca3af]"
-                            style={{ margin: "16px 0 8px" }}
-                          >
-                            {g.label}
-                          </span>
-                        </div>
-                        <ul className="mt-2 flex list-none flex-col gap-3 p-0">
-                          {g.items.map((v) => {
-                            const apiSlug = journeyCompanyIdToApiSlug(v.companyId);
-                            const merged =
-                              v.numericItemId != null
-                                ? itemsLive.find((it) => Number(it.id) === Number(v.numericItemId)) ?? null
-                                : v.itemSlug && v.itemSlug !== "storefront"
-                                  ? mergeHubListing(itemsLive, v.itemSlug, v.itemName || undefined)
-                                  : null;
-                            const toHref =
-                              merged?.slug != null
-                                ? marketplaceListingPath(merged.slug)
-                                : v.companyId
-                                  ? partnerStorefrontPath(v.companyId)
-                                  : apiSlug
-                                    ? `/marketplace/companies/${apiSlug}`
-                                    : "/marketplace/explore";
-                            const swatchColor = (apiSlug && ACTIVITY_COMPANY_SWATCH[apiSlug]) || "#64748b";
-                            const companyLine = v.companyName || journeyCompanyIdToPartnerLabel(v.companyId);
-                            return (
-                              <li
-                                key={`${v.timestamp}-${v.companyId}-${v.itemId ?? "sf"}-${v.visitType || v.action}`}
-                                className="list-none"
-                              >
-                                <div className="flex flex-row items-center justify-between gap-4 rounded-[14px] border border-[#f0f0f0] bg-white px-[18px] py-[14px] shadow-sm">
-                                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                                    <span
-                                      className="mt-1.5 h-[10px] w-[10px] shrink-0 rounded-[4px]"
-                                      style={{ backgroundColor: swatchColor }}
-                                      aria-hidden
-                                    />
-                                    <div className="min-w-0">
-                                      <p className="truncate text-[14px] font-bold leading-snug text-slate-900">
+                  <div ref={timelineRootRef} className="mt-6">
+                    {(() => {
+                      let globalIdx = 0;
+                      return journeyActivityGroups.map((g) => (
+                        <div key={g.key} className="mb-2">
+                          <div className="sticky top-0 z-[2] -mx-1 bg-[#f4f6fb]/90 px-1 py-1 backdrop-blur-sm">
+                            <span
+                              className="inline-block rounded-[20px] bg-[#f9fafb] px-3 py-1 text-[11px] font-bold text-[#9ca3af]"
+                              style={{ margin: "16px 0 8px" }}
+                            >
+                              {g.label}
+                            </span>
+                          </div>
+                          <ul className="relative mt-2 flex list-none flex-col gap-4 p-0">
+                            {g.items.map((v) => {
+                              const timelineIndex = globalIdx++;
+                              const apiSlug = journeyCompanyIdToApiSlug(v.companyId);
+                              const merged =
+                                v.numericItemId != null
+                                  ? itemsLive.find((it) => Number(it.id) === Number(v.numericItemId)) ?? null
+                                  : v.itemSlug && v.itemSlug !== "storefront"
+                                    ? mergeHubListing(itemsLive, v.itemSlug, v.itemName || undefined)
+                                    : null;
+                              const toHref =
+                                merged?.slug != null
+                                  ? marketplaceListingPath(merged.slug)
+                                  : v.companyId
+                                    ? partnerStorefrontPath(v.companyId)
+                                    : apiSlug
+                                      ? `/marketplace/companies/${apiSlug}`
+                                      : "/marketplace/explore";
+                              const swatchColor = (apiSlug && ACTIVITY_COMPANY_SWATCH[apiSlug]) || "#64748b";
+                              const companyLine = v.companyName || journeyCompanyIdToPartnerLabel(v.companyId);
+                              return (
+                                <li
+                                  key={`${v.timestamp}-${v.companyId}-${v.itemId ?? "sf"}-${v.visitType || v.action}`}
+                                  className="relative list-none pl-1"
+                                  style={{
+                                    opacity: timelineInView ? 1 : 0,
+                                    transform: timelineInView ? "translateX(0)" : "translateX(1rem)",
+                                    transitionProperty: "opacity, transform",
+                                    transitionDuration: "0.45s",
+                                    transitionTimingFunction: "ease-out",
+                                    transitionDelay: timelineInView ? `${timelineIndex * 80}ms` : "0ms",
+                                  }}
+                                >
+                                  <div className="relative flex gap-4">
+                                    <div className="flex w-6 shrink-0 flex-col items-center pt-1">
+                                      <span
+                                        className="z-[1] h-3.5 w-3.5 shrink-0 rounded-full border-2 border-white shadow ring-1 ring-slate-200/80"
+                                        style={{ backgroundColor: swatchColor }}
+                                        aria-hidden
+                                      />
+                                      <span className="mt-1 w-px flex-1 min-h-[1.5rem] bg-slate-200" aria-hidden />
+                                    </div>
+                                    <div
+                                      className="min-w-0 flex-1 rounded-2xl border border-gray-100 border-l-4 bg-white py-3 pl-4 pr-4 shadow-sm"
+                                      style={{ borderLeftColor: swatchColor }}
+                                    >
+                                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{companyLine}</p>
+                                      <p className="mt-1 text-[15px] font-bold leading-snug text-slate-900">
                                         {v.itemName || "Visit"}
                                       </p>
-                                      <p className="mt-0.5 truncate text-[12px] text-[#6b7280]">{companyLine}</p>
+                                      <p className="mt-1 text-xs text-slate-500">{formatReviewWhen(v.timestamp)}</p>
+                                      <Link
+                                        to={toHref}
+                                        className="mt-2 inline-block text-xs font-bold text-violet-700 hover:underline"
+                                      >
+                                        View
+                                      </Link>
                                     </div>
                                   </div>
-                                  <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                                    <p className="text-[12px] text-[#9ca3af]">{formatReviewWhen(v.timestamp)}</p>
-                                    <Link to={toHref} className="text-[12px] font-bold text-[#7c3aed] hover:underline">
-                                      View
-                                    </Link>
-                                  </div>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    ))}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
               </div>
@@ -1121,7 +1479,6 @@ export default function ExploreMarketplace() {
 
               <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-7">
                 {PARTNERS.map((corp) => {
-                  const acc = PARTNER_CARD_ACCENTS[corp.slug];
                   const Icon = corp.icon;
                   const topList = partnerCompanyTopListings(itemsLive, corp.slug);
                   const companyListingCount = itemsLive.filter((i) => i.companySlug === corp.slug).length;
@@ -1132,62 +1489,58 @@ export default function ExploreMarketplace() {
                     (journeyId && partnerOriginalWebsiteUrl(journeyId)) ||
                     totals?.websiteUrl ||
                     PARTNER_WEBSITE_FALLBACK[corp.slug];
-                  const avgStr =
-                    totals?.reviewCount > 0 && totals?.avgRating != null
-                      ? Number(totals.avgRating).toFixed(2)
-                      : "No rating yet";
-                  const visitsStr =
-                    totals?.visits != null ? Number(totals.visits).toLocaleString() : "0";
-                  const listingsStr = totals?.listings != null ? String(totals.listings) : "—";
+                  const cardGrad = PARTNER_STORE_CARD_GRADIENT[corp.slug] || "bg-gradient-to-br from-slate-700 to-slate-900";
 
                   return (
                     <article
                       key={corp.slug}
-                      className={`flex h-full flex-col overflow-hidden rounded-[1.55rem] border border-slate-200/90 bg-white p-7 shadow-[0_16px_50px_-32px_rgba(15,23,42,0.22)] transition duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_24px_56px_-32px_rgba(15,23,42,0.18)] ${acc.ring}`}
+                      className={`fh-partner-card-wrap group relative flex h-full flex-col overflow-hidden rounded-[1.55rem] border border-white/20 text-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_28px_60px_-24px_rgba(15,23,42,0.55)] ${cardGrad}`}
                     >
-                      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex min-w-0 flex-1 items-start gap-4">
-                          <span
-                            className={`relative flex h-[4.35rem] w-[4.35rem] shrink-0 items-center justify-center rounded-2xl border border-slate-100 shadow-inner ${acc.iconWrap}`}
-                          >
-                            <Icon className="h-10 w-10" aria-hidden />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Category: {corp.category}</p>
-                            <h3 className="mt-2 font-display text-xl font-bold text-slate-900">{corp.name}</h3>
-                            <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-                              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                                <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Average Rating</dt>
-                                <dd className="mt-1 text-lg font-black tabular-nums text-amber-600">{avgStr}</dd>
+                      <div
+                        className="fh-partner-shine-layer pointer-events-none absolute inset-0 z-[2] overflow-hidden rounded-[inherit]"
+                        aria-hidden
+                      />
+                      <div className="relative z-[3] flex flex-1 flex-col p-7">
+                        <div className="flex min-w-0 flex-1 flex-col gap-4">
+                          <div className="flex items-start gap-4">
+                            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-2 ring-white/35 backdrop-blur-sm">
+                              <Icon className="h-8 w-8 text-white" aria-hidden />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-display text-2xl font-black tracking-tight drop-shadow-sm">{corp.name}</h3>
+                              <p className="mt-1 text-sm font-semibold text-white/90">
+                                Owner · {PARTNER_OWNER_DISPLAY[corp.slug] || "Partner"}
+                              </p>
+                              <p className="mt-3 text-lg font-bold tabular-nums text-white">
+                                {companyListingCount}{" "}
+                                <span className="text-sm font-semibold text-white/80">products in catalog</span>
+                              </p>
+                              <p className="mt-2 text-xs text-white/70">
+                                Avg rating {totals?.reviewCount > 0 && totals?.avgRating != null ? Number(totals.avgRating).toFixed(1) : "—"} ·{" "}
+                                {totals?.visits != null ? Number(totals.visits).toLocaleString() : "0"} visits
+                              </p>
+                              <div className="relative mt-5 h-12 w-full overflow-hidden">
+                                <Link
+                                  to={storefrontTo}
+                                  onClick={() => {
+                                    if (isAuthenticated && user && journeyId) {
+                                      recordCompanySurface({
+                                        journeyCompanyId: journeyId,
+                                        companyName: corp.name,
+                                        action: "open_storefront",
+                                        path: storefrontTo,
+                                      });
+                                    }
+                                  }}
+                                  className="absolute inset-x-0 bottom-0 z-[4] flex min-h-[46px] translate-y-4 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-slate-900 opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+                                >
+                                  Visit Store → <FiArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+                                </Link>
                               </div>
-                              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                                <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total Visits</dt>
-                                <dd className="mt-1 text-lg font-black tabular-nums text-slate-950">{visitsStr}</dd>
-                              </div>
-                              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                                <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Listings</dt>
-                                <dd className="mt-1 text-lg font-black tabular-nums text-slate-950">{listingsStr}</dd>
-                              </div>
-                            </dl>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-[11.75rem]">
-                          <Link
-                            to={storefrontTo}
-                            onClick={() => {
-                              if (isAuthenticated && user && journeyId) {
-                                recordCompanySurface({
-                                  journeyCompanyId: journeyId,
-                                  companyName: corp.name,
-                                  action: "open_storefront",
-                                  path: storefrontTo,
-                                });
-                              }
-                            }}
-                            className={`inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] px-4 text-[14px] font-bold text-white shadow-md ${acc.ctaGlow} ${HUB_GRADIENT_HOVER}`}
-                          >
-                            Open Storefront <FiArrowRight className="h-4 w-4 shrink-0" aria-hidden />
-                          </Link>
+                        <div className="relative z-[4] mt-auto flex flex-col gap-2 pt-2 sm:flex-row">
                           <a
                             href={originalWebsiteHref}
                             target="_blank"
@@ -1202,26 +1555,40 @@ export default function ExploreMarketplace() {
                                 });
                               }
                             }}
-                            className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-[14px] font-bold text-slate-900 shadow-sm transition hover:border-violet-300"
+                            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/35 bg-white/10 px-4 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
                           >
-                            Visit Original Website <FiExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                            Original site <FiExternalLink className="h-4 w-4 shrink-0" aria-hidden />
                           </a>
+                          <Link
+                            to={storefrontTo}
+                            onClick={() => {
+                              if (isAuthenticated && user && journeyId) {
+                                recordCompanySurface({
+                                  journeyCompanyId: journeyId,
+                                  companyName: corp.name,
+                                  action: "open_storefront",
+                                  path: storefrontTo,
+                                });
+                              }
+                            }}
+                            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-2xl border border-white/40 bg-white/95 px-4 text-xs font-bold text-slate-900 shadow-sm transition hover:bg-white sm:hidden"
+                          >
+                            Storefront <FiArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+                          </Link>
                         </div>
                       </div>
 
-                      <div className="mt-7 border-t border-slate-100 pt-7">
-                        <p className="text-[13px] font-black uppercase tracking-wide text-slate-900">
-                          🏆 Top 5 in this Storefront
-                        </p>
-                        <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+                      <div className="relative z-[3] border-t border-white/25 bg-black/10 px-7 pb-7 pt-6 backdrop-blur-[2px]">
+                        <p className="text-[13px] font-black uppercase tracking-wide text-white">🏆 Top 5 in this Storefront</p>
+                        <p className="mt-2 text-[12px] leading-relaxed text-white/75">
                           Top listings based on visits, reviews, and ratings for this company.
                         </p>
-                        <p className="mt-1 text-[12px] font-medium text-slate-400">Ranked by marketplace engagement.</p>
+                        <p className="mt-1 text-[11px] font-medium text-white/60">Ranked by marketplace engagement.</p>
                         {companyListingCount === 0 ? (
-                          <p className="mt-4 text-sm leading-relaxed text-slate-600">No listings for this partner in the catalog.</p>
+                          <p className="mt-4 text-sm leading-relaxed text-white/85">No listings for this partner in the catalog.</p>
                         ) : null}
                         {topList.length > 0 ? (
-                          <ul className="mt-4 flex list-none flex-col gap-3 p-0">
+                          <ul className="mt-4 flex list-none flex-col gap-3 rounded-2xl bg-white/95 p-3 shadow-inner ring-1 ring-white/30">
                             {topList.map((merged, idx) => (
                               <li key={merged.slug || merged.id} className="list-none">
                                 <LeaderboardListRow
@@ -1249,14 +1616,18 @@ export default function ExploreMarketplace() {
             </div>
           </section>
 
-          {/* SECTION 4 — Latest Reviews */}
+          {/* SECTION 4 — Latest Reviews / Your activity */}
           <section className="border-t border-slate-200/85 bg-white py-10 lg:py-11">
             <div className={SHELL}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">Latest Reviews</h2>
+                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">
+                    {isAuthenticated && myReviewsFeedSorted.length > 0 ? "Your review activity" : "Latest Reviews"}
+                  </h2>
                   <p className="mt-2 max-w-3xl text-[15px] text-slate-600">
-                    Recent marketplace reviews from users across partner companies.
+                    {isAuthenticated && myReviewsFeedSorted.length > 0
+                      ? "Reviews you’ve submitted across the marketplace (this browser)."
+                      : "Recent marketplace reviews from users across partner companies."}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -1284,7 +1655,111 @@ export default function ExploreMarketplace() {
                 </div>
               </div>
               <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-                {latestReviewsFeed.length === 0 ? (
+                {isAuthenticated && myReviewsFeedSorted.length > 0 ? (
+                  <>
+                    {myReviewsFeedSorted.slice(0, Math.min(5, myReviewVisibleCount)).map((r) => {
+                      const snippet = (r.comment || "").trim();
+                      const short = snippet.length > 160 ? `${snippet.slice(0, 160)}…` : snippet;
+                      const initials = userAvatarInitials({ displayName: r.userName || "Member" });
+                      return (
+                        <div
+                          key={r.id}
+                          className="rounded-3xl border border-slate-200/95 bg-[#fdfdff] px-6 py-5 shadow-[0_18px_60px_-32px_rgba(15,23,42,0.22)] transition duration-300 ease-out hover:-translate-y-0.5 hover:border-violet-200/80 hover:shadow-[0_22px_64px_-32px_rgba(15,23,42,0.28)]"
+                        >
+                          <div className="flex gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 text-sm font-black text-white shadow-md">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-bold text-slate-900">{r.userName || "Member"}</p>
+                                <span className="inline-flex max-w-full shrink-0 truncate rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-900 ring-1 ring-violet-200/80">
+                                  {r.companyName || journeyCompanyIdToPartnerLabel(r.companyId)}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-0.5 text-amber-500" role="img" aria-label={`${r.rating} out of 5 stars`}>
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <FiStar
+                                    key={star}
+                                    className={`h-4 w-4 ${star <= Number(r.rating || 0) ? "fill-current" : "text-slate-200"}`}
+                                    aria-hidden
+                                  />
+                                ))}
+                              </div>
+                              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800">
+                                {short ? `“${short}”` : "—"}
+                              </p>
+                              <p className="mt-2 text-xs font-semibold text-slate-600">{r.itemName || "Listing"}</p>
+                              <p className="mt-1 text-xs text-slate-500">{formatReviewWhen(r.timestamp)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div
+                      className="col-span-full overflow-hidden transition-all duration-500 md:col-span-2"
+                      style={{
+                        maxHeight:
+                          myReviewVisibleCount <= 5
+                            ? 0
+                            : `${Math.min(500, Math.max(120, (myReviewVisibleCount - 5) * 130))}px`,
+                      }}
+                    >
+                      <div className="grid grid-cols-1 gap-4 pt-2 md:grid-cols-2">
+                        {myReviewsFeedSorted.slice(5, myReviewVisibleCount).map((r) => {
+                          const snippet = (r.comment || "").trim();
+                          const short = snippet.length > 160 ? `${snippet.slice(0, 160)}…` : snippet;
+                          const initials = userAvatarInitials({ displayName: r.userName || "Member" });
+                          return (
+                            <div
+                              key={r.id}
+                              className="rounded-3xl border border-slate-200/95 bg-[#fdfdff] px-6 py-5 shadow-[0_18px_60px_-32px_rgba(15,23,42,0.22)] transition duration-300 ease-out hover:-translate-y-0.5 hover:border-violet-200/80"
+                            >
+                              <div className="flex gap-4">
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 text-sm font-black text-white shadow-md">
+                                  {initials}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-sm font-bold text-slate-900">{r.userName || "Member"}</p>
+                                    <span className="inline-flex max-w-full shrink-0 truncate rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-900 ring-1 ring-violet-200/80">
+                                      {r.companyName || journeyCompanyIdToPartnerLabel(r.companyId)}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex items-center gap-0.5 text-amber-500" role="img" aria-label={`${r.rating} out of 5 stars`}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <FiStar
+                                        key={star}
+                                        className={`h-4 w-4 ${star <= Number(r.rating || 0) ? "fill-current" : "text-slate-200"}`}
+                                        aria-hidden
+                                      />
+                                    ))}
+                                  </div>
+                                  <p className="mt-2 text-sm font-medium leading-relaxed text-slate-800">
+                                    {short ? `“${short}”` : "—"}
+                                  </p>
+                                  <p className="mt-2 text-xs font-semibold text-slate-600">{r.itemName || "Listing"}</p>
+                                  <p className="mt-1 text-xs text-slate-500">{formatReviewWhen(r.timestamp)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {myReviewVisibleCount < myReviewsFeedSorted.length ? (
+                      <div className="col-span-full flex justify-center pt-2 md:col-span-2">
+                        <button
+                          type="button"
+                          onClick={() => setMyReviewVisibleCount((c) => c + 5)}
+                          className="rounded-2xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition hover:border-violet-300"
+                        >
+                          Load more
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                ) : latestReviewsFeed.length === 0 ? (
                   <p className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-8 text-center text-sm text-slate-600 md:col-span-2">
                     No reviews yet. Be the first to write one.
                   </p>
@@ -1330,6 +1805,26 @@ export default function ExploreMarketplace() {
               <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-slate-600">
                 A quick preview of popular listings. Open a storefront to browse the full catalog.
               </p>
+              {hubTopFiveMerged.length > 0 ? (
+                <div className="fh-explore-marquee-wrap mt-8 overflow-hidden rounded-xl bg-gray-900 py-3 text-white shadow-md ring-1 ring-slate-800/60">
+                  <div className="fh-explore-marquee-track">
+                    {[0, 1].map((dup) => (
+                      <span key={dup} className="flex shrink-0 items-center gap-16 pr-16">
+                        {hubTopFiveMerged.map((row) => (
+                          <span
+                            key={`${dup}-${row.slug || row.id}`}
+                            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm font-semibold tracking-tight"
+                          >
+                            🔥 Trending: {row.title} · ⭐{" "}
+                            {row.reviewsDisplay > 0 ? Number(row.ratingDisplay).toFixed(1) : "—"} · 👁{" "}
+                            {Number(row.visitsDisplay ?? 0).toLocaleString()}
+                          </span>
+                        ))}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {loading && !hubFeaturedMerged.length ? (
                 <p className="mt-10 text-center text-[15px] text-slate-500">Loading…</p>
               ) : (
@@ -1381,15 +1876,108 @@ export default function ExploreMarketplace() {
 
           <div className="sticky top-16 z-30 border-b border-slate-200 bg-white shadow-sm">
             <div className={`${SHELL} space-y-4 py-4`}>
-              <div className="relative">
-                <FiSearch className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <div ref={allListingsSearchWrapRef} className="relative z-[20]">
+                <FiSearch className="pointer-events-none absolute left-4 top-1/2 z-[1] h-5 w-5 -translate-y-1/2 text-slate-400" />
                 <input
                   type="search"
                   placeholder="Search products, services, or companies..."
                   value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3.5 pl-12 pr-4 text-slate-900 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-500/15"
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setAllListingsDropdownOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (allListingsSuggestDebounced.trim()) setAllListingsDropdownOpen(true);
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3.5 pl-12 pr-10 text-slate-900 outline-none transition-all duration-200 focus:border-transparent focus:bg-white focus:shadow-lg focus:shadow-purple-500/20 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
                 />
+                {q.trim() ? (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    onClick={() => {
+                      setQ("");
+                      setAllListingsDropdownOpen(false);
+                    }}
+                  >
+                    <FiX className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+                {allListingsDropdownOpen &&
+                allListingsSuggestDebounced.trim() &&
+                (allListingsSuggest.companies.length > 0 || allListingsSuggest.products.length > 0) ? (
+                  <div
+                    className="fh-hub-dropdown-in absolute left-0 right-0 top-full z-30 mt-1 max-h-[min(22rem,65vh)] overflow-y-auto rounded-xl border border-slate-200 bg-white py-2 shadow-xl"
+                    role="listbox"
+                  >
+                    {allListingsSuggest.companies.length > 0 ? (
+                      <div className="px-2 pt-1">
+                        <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Companies</p>
+                        <ul className="flex flex-col gap-0.5 p-0">
+                          {allListingsSuggest.companies.map((corp) => {
+                            const Icon = corp.icon;
+                            const journeyId = apiCompanySlugToJourneyCompanyId(corp.slug);
+                            const to = journeyId ? partnerStorefrontPath(journeyId) : `/marketplace/companies/${corp.slug}`;
+                            return (
+                              <li key={corp.slug} className="list-none">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-violet-50"
+                                  onClick={() => {
+                                    setAllListingsDropdownOpen(false);
+                                    navigate(to);
+                                  }}
+                                >
+                                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-800">
+                                    <Icon className="h-4 w-4" aria-hidden />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-semibold text-slate-900">{corp.name}</span>
+                                    <span className="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase text-slate-600">
+                                      {categoryRibbonLabel(corp.category)}
+                                    </span>
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {allListingsSuggest.products.length > 0 ? (
+                      <div className="px-2 pb-1 pt-2">
+                        <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Products</p>
+                        <ul className="flex flex-col gap-0.5 p-0">
+                          {allListingsSuggest.products.map((it) => (
+                            <li key={it.id} className="list-none">
+                              <button
+                                type="button"
+                                role="option"
+                                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-violet-50"
+                                onClick={() => {
+                                  setAllListingsDropdownOpen(false);
+                                  openListingOrStorefront(it);
+                                }}
+                              >
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-800">
+                                  <FiPackage className="h-4 w-4" aria-hidden />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-semibold text-slate-900">{it.name}</span>
+                                  <span className="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase text-slate-600">
+                                    {categoryRibbonLabel(it.category)}
+                                  </span>
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Category</span>

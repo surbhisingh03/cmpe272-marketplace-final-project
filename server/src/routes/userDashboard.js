@@ -51,10 +51,10 @@ router.get("/summary", requireAuth, async (req, res) => {
   );
 
   const [activity] = await pool.query(
-    `(SELECT 'visit' AS type, visited_at AS at, CONCAT('Viewed ', p.name) AS label
+    `(SELECT 'visit' AS type, v.visited_at AS at, CONCAT('Viewed ', p.name) AS label
       FROM visits v JOIN products p ON p.id = v.product_id WHERE v.user_id = :u1)
      UNION ALL
-     (SELECT 'review' AS type, created_at AS at, CONCAT('Reviewed ', p.name) AS label
+     (SELECT 'review' AS type, r.created_at AS at, CONCAT('Reviewed ', p.name) AS label
       FROM reviews r JOIN products p ON p.id = r.product_id WHERE r.user_id = :u2)
      ORDER BY at DESC LIMIT 15`,
     { u1: uid, u2: uid }

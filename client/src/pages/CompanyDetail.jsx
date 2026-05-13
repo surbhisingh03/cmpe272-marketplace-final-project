@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
@@ -28,6 +28,40 @@ function mergePayloadWithCatalog(payload, catalogItems) {
   }));
   const company = { ...payload.company, avgRating: 0, reviewCount: 0 };
   return { company, products };
+}
+
+/** Tailwind gradient classes (no spaces) for full-bleed company hero */
+const COMPANY_STOREFRONT_THEME = {
+  "srikavya-enterprise": {
+    heroGradient: "from-amber-600 via-orange-600 to-red-900",
+    owner: "Geeshitha Gelli",
+  },
+  krativerse: {
+    heroGradient: "from-purple-600 via-violet-700 to-indigo-950",
+    owner: "Surbhi",
+  },
+  "travel-agency": {
+    heroGradient: "from-cyan-500 via-teal-600 to-teal-950",
+    owner: "Surbhi Singh",
+  },
+  "nexus-academy": {
+    heroGradient: "from-pink-500 via-fuchsia-600 to-purple-950",
+    owner: "Geeshitha",
+  },
+};
+
+function VisitTrackedToast({ open }) {
+  const visible = Boolean(open);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed bottom-6 z-[500] max-w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-emerald-200/90 bg-white px-5 py-4 text-sm font-bold text-emerald-950 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] transition-[right,opacity] duration-300 ease-out"
+      style={{ right: visible ? "1.5rem" : "-18rem", opacity: visible ? 1 : 0 }}
+    >
+      ✓ Visit tracked!
+    </div>
+  );
 }
 
 export function MarketplaceStorefrontPage() {
@@ -63,6 +97,10 @@ function CompanyDetailBody({ apiSlug }) {
   const { recordCompanySurface } = useMarketplaceUserTracking(user, isAuthenticated);
   const journeyId = apiCompanySlugToJourneyCompanyId(apiSlug);
   const internalStorefrontPath = journeyId ? partnerStorefrontPath(journeyId) : `/marketplace/companies/${apiSlug}`;
+
+  const [visitBumpNonce, setVisitBumpNonce] = useState(0);
+  const [visitToastOpen, setVisitToastOpen] = useState(false);
+  const toastDismissTimerRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +155,22 @@ function CompanyDetailBody({ apiSlug }) {
       action: "open_storefront",
       path: internalStorefrontPath,
     });
-  }, [displayPayload, isAuthenticated, user, internalStorefrontPath, journeyId, recordCompanySurface]);
+    setVisitBumpNonce((n) => n + 1);
+    setVisitToastOpen(true);
+    if (toastDismissTimerRef.current) clearTimeout(toastDismissTimerRef.current);
+    toastDismissTimerRef.current = setTimeout(() => {
+      setVisitToastOpen(false);
+      toastDismissTimerRef.current = null;
+    }, 2500);
+    return () => {
+      if (toastDismissTimerRef.current) clearTimeout(toastDismissTimerRef.current);
+    };
+  }, [displayPayload, isAuthenticated, user, internalStorefrontPath, journeyId, recordCompanySurface, apiSlug]);
+
+  const theme = COMPANY_STOREFRONT_THEME[apiSlug] || {
+    heroGradient: "from-slate-700 via-violet-800 to-slate-950",
+    owner: "Partner team",
+  };
 
   if (loadError) {
     return (
@@ -164,12 +217,18 @@ function CompanyDetailBody({ apiSlug }) {
   const { company, products } = displayPayload;
 
   return (
-    <StorefrontMarketplaceView
-      apiSlug={apiSlug}
-      journeyId={journeyId}
-      company={company}
-      products={products}
-      internalStorefrontPath={internalStorefrontPath}
-    />
+    <>
+      <VisitTrackedToast open={visitToastOpen} />
+      <StorefrontMarketplaceView
+        apiSlug={apiSlug}
+        journeyId={journeyId}
+        company={company}
+        products={products}
+        internalStorefrontPath={internalStorefrontPath}
+        heroGradientClass={theme.heroGradient}
+        companyOwnerDisplay={theme.owner}
+        visitBumpNonce={visitBumpNonce}
+      />
+    </>
   );
 }
