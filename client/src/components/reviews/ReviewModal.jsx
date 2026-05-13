@@ -101,7 +101,11 @@ export default function ReviewModal({ open, onClose, productId, productName, onS
       onSubmitted?.({ rating, title: title.trim(), body: body.trim() });
       onClose?.();
     } catch (err) {
-      setError(err.payload?.error || err.message || "Could not submit");
+      setError(
+        err.message ||
+          [err.payload?.error, err.payload?.hint].filter(Boolean).join(" ") ||
+          "Could not submit"
+      );
     } finally {
       setBusy(false);
     }

@@ -47,7 +47,11 @@ export default function AdminLogin() {
       });
       nav("/admin", { replace: true });
     } catch (err) {
-      setError(err.payload?.error || err.message || "Admin login failed");
+      setError(
+        err.message ||
+          [err.payload?.error, err.payload?.hint].filter(Boolean).join(" ") ||
+          "Admin login failed"
+      );
     } finally {
       setBusy(false);
     }

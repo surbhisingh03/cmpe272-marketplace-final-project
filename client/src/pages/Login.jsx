@@ -172,7 +172,11 @@ export default function Login() {
     try {
       await finalizeLogin(email.trim(), password);
     } catch (err) {
-      setError(err.payload?.error || err.message || "Sign in failed");
+      setError(
+        err.message ||
+          [err.payload?.error, err.payload?.hint].filter(Boolean).join(" ") ||
+          "Sign in failed"
+      );
     } finally {
       setBusy(false);
     }
@@ -187,8 +191,8 @@ export default function Login() {
       await finalizeLogin(DEMO_EMAIL, DEMO_PASSWORD);
     } catch (err) {
       setError(
-        err.payload?.error ||
-          err.message ||
+        err.message ||
+          [err.payload?.error, err.payload?.hint].filter(Boolean).join(" ") ||
           "Demo sign-in failed. Run `npm run seed` in the server folder to create the demo user."
       );
     } finally {

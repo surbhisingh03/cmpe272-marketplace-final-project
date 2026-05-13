@@ -109,7 +109,11 @@ export default function Signup() {
       });
       setStep("success");
     } catch (err) {
-      setError(err.payload?.error || err.message || "Could not create account");
+      setError(
+        err.message ||
+          [err.payload?.error, err.payload?.hint].filter(Boolean).join(" ") ||
+          "Could not create account"
+      );
     } finally {
       setBusy(false);
     }

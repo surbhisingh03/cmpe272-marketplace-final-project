@@ -49,7 +49,19 @@ export async function apiFetch(path, options = {}) {
     data = { raw: text };
   }
   if (!res.ok) {
-    const err = new Error(data?.error || res.statusText || "Request failed");
+    const raw = typeof data?.raw === "string" ? data.raw.trim() : "";
+    const looksHtml = raw.startsWith("<!") || raw.startsWith("<html");
+    const fallback =
+      looksHtml || !data?.error
+        ? res.status === 502 || res.status === 504
+          ? "Cannot reach the API. Start the server (port 5001) or run npm run dev from the project root."
+          : looksHtml
+            ? "The server returned an error page instead of JSON. Check that the API is running on port 5001."
+            : res.statusText || "Request failed"
+        : null;
+    const main = data?.error || fallback || "Request failed";
+    const hint = data?.hint ? ` ${data.hint}` : "";
+    const err = new Error(main + hint);
     err.status = res.status;
     err.payload = data;
     throw err;
