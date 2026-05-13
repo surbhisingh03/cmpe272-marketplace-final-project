@@ -30,61 +30,65 @@ import AdminRankingsPage from "./pages/admin/marketplace/AdminRankingsPage.jsx";
 import AdminPartnersPage from "./pages/admin/marketplace/AdminPartnersPage.jsx";
 import AdminSettingsPage from "./pages/admin/marketplace/AdminSettingsPage.jsx";
 import MarketplaceReviews from "./pages/MarketplaceReviews.jsx";
+import MarketplaceChatbot from "./components/MarketplaceChatbot.jsx";
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/leaderboards" element={<Leaderboards />} />
-      <Route path="/marketplace/explore" element={<ExploreMarketplace />} />
-      <Route path="/marketplace/listing/:slug" element={<MarketplaceListingDetail />} />
-      <Route path="/search" element={<SearchPage />} />
-      <Route path="/marketplace/storefront/:journeySlug" element={<MarketplaceStorefrontPage />} />
-      <Route path="/marketplace/companies/:slug" element={<CompanyDetail />} />
-      <Route path="/marketplace/products/:id" element={<ProductDetail />} />
-      <Route path="/reviews" element={<MarketplaceReviews />} />
+    <>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/leaderboards" element={<Leaderboards />} />
+        <Route path="/marketplace/explore" element={<ExploreMarketplace />} />
+        <Route path="/marketplace/listing/:slug" element={<MarketplaceListingDetail />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/marketplace/storefront/:journeySlug" element={<MarketplaceStorefrontPage />} />
+        <Route path="/marketplace/companies/:slug" element={<CompanyDetail />} />
+        <Route path="/marketplace/products/:id" element={<ProductDetail />} />
+        <Route path="/reviews" element={<MarketplaceReviews />} />
 
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Navigate to="home" replace />} />
-        <Route path="home" element={<DashboardHome />} />
-        <Route path="companies" element={<DashboardCompanies />} />
-        <Route path="favorites" element={<DashboardFavorites />} />
-        <Route path="reviews" element={<DashboardReviews />} />
-        <Route path="analytics" element={<DashboardAnalytics />} />
-        <Route path="top-products" element={<DashboardTopProducts />} />
-        <Route path="settings" element={<DashboardSettings />} />
-      </Route>
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="home" replace />} />
+          <Route path="home" element={<DashboardHome />} />
+          <Route path="companies" element={<DashboardCompanies />} />
+          <Route path="favorites" element={<DashboardFavorites />} />
+          <Route path="reviews" element={<DashboardReviews />} />
+          <Route path="analytics" element={<DashboardAnalytics />} />
+          <Route path="top-products" element={<DashboardTopProducts />} />
+          <Route path="settings" element={<DashboardSettings />} />
+        </Route>
 
-      <Route path="/admin/login" element={<AdminLogin />} />
-      <Route
-        path="/admin"
-        element={
-          <AdminGuard>
-            <AdminMarketplaceLayout />
-          </AdminGuard>
-        }
-      >
-        <Route index element={<AdminMarketplaceHome />} />
-        <Route path="users" element={<AdminUsersPage />} />
-        <Route path="visits" element={<AdminVisitsPage />} />
-        <Route path="activity" element={<AdminActivityPage />} />
-        <Route path="reviews" element={<AdminReviewsAdminPage />} />
-        <Route path="listings" element={<AdminListingsPage />} />
-        <Route path="rankings" element={<AdminRankingsPage />} />
-        <Route path="partners" element={<AdminPartnersPage />} />
-        <Route path="settings" element={<AdminSettingsPage />} />
-      </Route>
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminGuard>
+              <AdminMarketplaceLayout />
+            </AdminGuard>
+          }
+        >
+          <Route index element={<AdminMarketplaceHome />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="visits" element={<AdminVisitsPage />} />
+          <Route path="activity" element={<AdminActivityPage />} />
+          <Route path="reviews" element={<AdminReviewsAdminPage />} />
+          <Route path="listings" element={<AdminListingsPage />} />
+          <Route path="rankings" element={<AdminRankingsPage />} />
+          <Route path="partners" element={<AdminPartnersPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <MarketplaceChatbot />
+    </>
   );
 }
