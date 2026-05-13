@@ -3,6 +3,7 @@ import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import ExploreMarketplace from "./pages/ExploreMarketplace.jsx";
+import ActivityPage from "./pages/ActivityPage.jsx";
 import Leaderboards from "./pages/Leaderboards.jsx";
 import SearchPage from "./pages/Search.jsx";
 import CompanyDetail, { MarketplaceStorefrontPage } from "./pages/CompanyDetail.jsx";
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/leaderboards" element={<Leaderboards />} />
         <Route path="/marketplace/explore" element={<ExploreMarketplace />} />
+        <Route path="/activity" element={<ActivityPage />} />
         <Route path="/marketplace/listing/:slug" element={<MarketplaceListingDetail />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/marketplace/storefront/:journeySlug" element={<MarketplaceStorefrontPage />} />

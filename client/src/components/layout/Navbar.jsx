@@ -85,6 +85,9 @@ export default function Navbar({ onSearchCompanies = [], products = [] }) {
           <NavLink to="/#partners" className={navLinkClassPartners}>
             Partners
           </NavLink>
+          <NavLink to="/activity" className={navLinkClass}>
+            Live Feed
+          </NavLink>
           <NavLink to="/marketplace/explore" className={navLinkClass}>
             Explore Marketplace
           </NavLink>
@@ -270,6 +273,13 @@ export default function Navbar({ onSearchCompanies = [], products = [] }) {
                 className="py-2.5 text-[13px] text-[rgba(255,255,255,0.6)] no-underline hover:text-white"
               >
                 Partners
+              </Link>
+              <Link
+                to="/activity"
+                onClick={() => setOpen(false)}
+                className="py-2.5 text-[13px] text-[rgba(255,255,255,0.6)] no-underline hover:text-white"
+              >
+                Live Feed
               </Link>
               <Link
                 to="/marketplace/explore"

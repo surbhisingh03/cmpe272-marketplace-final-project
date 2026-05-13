@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
 import { apiFetch } from "../lib/api.js";
+import { submitProductReviewToApi } from "../lib/submitProductReviewApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useMarketplaceUserTracking } from "../hooks/useMarketplaceUserTracking.js";
 import {
@@ -336,7 +337,7 @@ export default function MarketplaceListingDetail() {
     });
   };
 
-  function submitReview(e) {
+  async function submitReview(e) {
     e.preventDefault();
     setFormErr("");
     setReviewSuccess(false);
@@ -359,6 +360,12 @@ export default function MarketplaceListingDetail() {
     }
     setSubmitting(true);
     try {
+      await submitProductReviewToApi(productId, {
+        title: `Review · ${product.name}`,
+        body: b,
+        rating: stars,
+        recommend: true,
+      });
       recordReview({
         rating: stars,
         productId,
@@ -372,7 +379,7 @@ export default function MarketplaceListingDetail() {
       setReviewSuccess(true);
       setLsTick((t) => t + 1);
     } catch (err) {
-      setFormErr(err?.message || "Submit failed.");
+      setFormErr(err?.message || err?.payload?.error || "Submit failed.");
     } finally {
       setSubmitting(false);
     }

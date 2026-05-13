@@ -1,5 +1,6 @@
 /** Shared FusionHub Marketplace marketing nav & footer links */
 export const MARKETPLACE_NAV_LINKS = [
+  { label: "Live Feed", to: "/activity" },
   { label: "Home", to: "/" },
   { label: "Marketplace", to: "/marketplace/explore" },
   { label: "Companies", to: "/#partners" },

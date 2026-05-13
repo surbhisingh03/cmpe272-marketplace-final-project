@@ -1,0 +1,16 @@
+<?php
+/**
+ * Copy to db.php and set credentials for your MySQL marketplace DB.
+ * Expected: PDO in $pdo with UTF-8, same schema as FusionHub (users.display_name, reviews.body, etc.)
+ */
+$host = getenv('MARKETPLACE_DB_HOST') ?: '127.0.0.1';
+$db   = getenv('MARKETPLACE_DB_NAME') ?: 'fusionhub';
+$user = getenv('MARKETPLACE_DB_USER') ?: 'root';
+$pass = getenv('MARKETPLACE_DB_PASS') ?: '';
+$charset = 'utf8mb4';
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$options = [
+  PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+  PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+];
+$pdo = new PDO($dsn, $user, $pass, $options);

@@ -327,4 +327,155 @@ router.get("/favorites", requireAuth, async (req, res) => {
   res.json(rows);
 });
 
+/** Unified activity feed (reviews, visits, signups) — same JSON shape as activity-feed.php */
+router.get("/activity-feed", async (req, res) => {
+  try {
+    const pool = getPool();
+    const rawLimit = Number(req.query.limit);
+    const limit = Math.min(Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 20, 50);
+    const rawSince = Number(req.query.since);
+    const since = Number.isFinite(rawSince) && rawSince >= 0 ? Math.floor(rawSince) : 0;
+
+    const [reviewRows] = await pool.query(
+      `SELECT 'review' AS type, r.id, u.display_name AS user_name, p.name AS product_name,
+              c.name AS company_name, c.slug AS company_slug, r.rating,
+              SUBSTRING(r.body FROM 1 FOR 500) AS review_text,
+              CAST(FLOOR(EXTRACT(EPOCH FROM r.created_at)) AS bigint) AS timestamp,
+              r.product_id AS product_id
+       FROM reviews r
+       JOIN users u ON u.id = r.user_id
+       JOIN products p ON p.id = r.product_id
+       JOIN companies c ON c.id = p.company_id
+       WHERE r.status = 'published'
+         AND CAST(FLOOR(EXTRACT(EPOCH FROM r.created_at)) AS bigint) > :since
+       ORDER BY r.created_at DESC
+       LIMIT :lim`,
+      { since, lim: limit }
+    );
+
+    const [visitRows] = await pool.query(
+      `SELECT 'visit' AS type, v.id, u.display_name AS user_name, p.name AS product_name,
+              c.name AS company_name, c.slug AS company_slug,
+              NULL AS rating, NULL AS review_text,
+              CAST(FLOOR(EXTRACT(EPOCH FROM v.visited_at)) AS bigint) AS timestamp,
+              v.product_id AS product_id
+       FROM visits v
+       JOIN users u ON u.id = v.user_id
+       JOIN products p ON p.id = v.product_id
+       JOIN companies c ON c.id = p.company_id
+       WHERE CAST(FLOOR(EXTRACT(EPOCH FROM v.visited_at)) AS bigint) > :since
+       ORDER BY v.visited_at DESC
+       LIMIT :lim`,
+      { since, lim: limit }
+    );
+
+    const [signupRows] = await pool.query(
+      `SELECT 'signup' AS type, u.id, u.display_name AS user_name,
+              NULL AS product_name, NULL AS company_name, NULL AS company_slug,
+              NULL AS rating, NULL AS review_text,
+              CAST(FLOOR(EXTRACT(EPOCH FROM u.created_at)) AS bigint) AS timestamp,
+              NULL AS product_id
+       FROM users u
+       WHERE CAST(FLOOR(EXTRACT(EPOCH FROM u.created_at)) AS bigint) > :since
+       ORDER BY u.created_at DESC
+       LIMIT 5`,
+      { since }
+    );
+
+    const all = [...reviewRows, ...visitRows, ...signupRows].sort(
+      (a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0)
+    );
+    const sliced = all.slice(0, limit);
+    res.json({
+      activities: sliced,
+      server_time: Math.floor(Date.now() / 1000),
+      count: sliced.length,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: "Activity feed unavailable", activities: [], server_time: Math.floor(Date.now() / 1000), count: 0 });
+  }
+});
+
+/** Stats for LiveStatsTicker + ActivityPage (polls separately) */
+router.get("/activity-stats", async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[visitToday]] = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM visits WHERE visited_at >= CURRENT_DATE`
+    );
+    const [[reviewToday]] = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM reviews WHERE status = 'published' AND created_at >= CURRENT_DATE`
+    );
+    const [[signupToday]] = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM users WHERE created_at >= CURRENT_DATE`
+    );
+    const [[activeToday]] = await pool.query(
+      `SELECT COUNT(DISTINCT user_id)::int AS c FROM visits WHERE visited_at >= CURRENT_DATE`
+    );
+    const [topVisitToday] = await pool.query(
+      `SELECT p.name AS productName, COUNT(*)::int AS n
+       FROM visits v
+       JOIN products p ON p.id = v.product_id
+       WHERE v.visited_at >= CURRENT_DATE
+       GROUP BY p.id, p.name
+       ORDER BY n DESC
+       LIMIT 1`
+    );
+    const [topReviewWeek] = await pool.query(
+      `SELECT p.name AS productName, COUNT(*)::int AS n
+       FROM reviews r
+       JOIN products p ON p.id = r.product_id
+       WHERE r.status = 'published' AND r.created_at >= (CURRENT_DATE - 6)
+       GROUP BY p.id, p.name
+       ORDER BY n DESC
+       LIMIT 1`
+    );
+    const [[userTotal]] = await pool.query(`SELECT COUNT(*)::int AS c FROM users`);
+
+    res.json({
+      visitCountToday: Number(visitToday?.c ?? 0) || 0,
+      reviewCountToday: Number(reviewToday?.c ?? 0) || 0,
+      signupCountToday: Number(signupToday?.c ?? 0) || 0,
+      activeUsersToday: Number(activeToday?.c ?? 0) || 0,
+      userCount: Number(userTotal?.c ?? 0) || 0,
+      topProductName: topVisitToday[0]?.productName || "—",
+      topProductWeekName: topReviewWeek[0]?.productName || topVisitToday[0]?.productName || "—",
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: "Stats unavailable" });
+  }
+});
+
+/** Mini leaderboards for Activity page (today) */
+router.get("/activity-leaders", async (req, res) => {
+  try {
+    const pool = getPool();
+    const [topReviewers] = await pool.query(
+      `SELECT u.display_name AS userName, COUNT(*)::int AS reviewCount
+       FROM reviews r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.status = 'published' AND r.created_at >= CURRENT_DATE
+       GROUP BY u.id, u.display_name
+       ORDER BY COUNT(*) DESC
+       LIMIT 5`
+    );
+    const [topVisited] = await pool.query(
+      `SELECT p.name AS productName, c.slug AS companySlug, COUNT(*)::int AS visitCount
+       FROM visits v
+       JOIN products p ON p.id = v.product_id
+       JOIN companies c ON c.id = p.company_id
+       WHERE v.visited_at >= CURRENT_DATE
+       GROUP BY p.id, p.name, c.slug
+       ORDER BY COUNT(*) DESC
+       LIMIT 5`
+    );
+    res.json({ topReviewersToday: topReviewers, mostVisitedToday: topVisited });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: "Leaders unavailable", topReviewersToday: [], mostVisitedToday: [] });
+  }
+});
+
 export default router;

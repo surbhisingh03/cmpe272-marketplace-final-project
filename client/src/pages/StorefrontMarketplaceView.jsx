@@ -4,6 +4,7 @@ import { FiArrowLeft, FiExternalLink, FiHeart, FiSearch, FiStar, FiX } from "rea
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
 import { apiFetch } from "../lib/api.js";
+import { submitProductReviewToApi } from "../lib/submitProductReviewApi.js";
 import { categoryRibbonLabel, marketplaceListingPath } from "../lib/marketplaceDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
@@ -358,7 +359,7 @@ export default function StorefrontMarketplaceView({
 
   const totalDist = Math.max(Number(dist?.total || 0), 1);
 
-  function submitReview(e) {
+  async function submitReview(e) {
     e.preventDefault();
     setFormErr("");
     if (!isAuthenticated) {
@@ -384,6 +385,12 @@ export default function StorefrontMarketplaceView({
     }
     setSubmitting(true);
     try {
+      await submitProductReviewToApi(drawerId, {
+        title: titleIn.trim() || `Review · ${drawerProduct.name}`,
+        body: b,
+        rating: stars,
+        recommend: true,
+      });
       recordReview({
         rating: stars,
         productId: drawerId,
@@ -398,13 +405,13 @@ export default function StorefrontMarketplaceView({
       refreshDrawerStats();
       setAnalyticsTick((t) => t + 1);
     } catch (err) {
-      setFormErr(err?.message || "Submit failed.");
+      setFormErr(err?.message || err?.payload?.error || "Submit failed.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  function submitQuickReview(e, p) {
+  async function submitQuickReview(e, p) {
     e.preventDefault();
     setQuickErr("");
     if (!isAuthenticated) {
@@ -428,6 +435,12 @@ export default function StorefrontMarketplaceView({
     }
     setQuickSubmitting(true);
     try {
+      await submitProductReviewToApi(p.id, {
+        title: `Review · ${p.name}`,
+        body: b,
+        rating: quickStars,
+        recommend: true,
+      });
       recordReview({
         rating: quickStars,
         productId: String(p.id),
@@ -442,7 +455,7 @@ export default function StorefrontMarketplaceView({
       setQuickErr("");
       setAnalyticsTick((t) => t + 1);
     } catch (err) {
-      setQuickErr(err?.message || "Submit failed.");
+      setQuickErr(err?.message || err?.payload?.error || "Submit failed.");
     } finally {
       setQuickSubmitting(false);
     }

@@ -14,9 +14,17 @@ import {
 } from "react-icons/fi";
 import { LuCoffee, LuGraduationCap, LuPlane, LuSparkles } from "react-icons/lu";
 import LeaderboardListRow from "../components/marketplace/LeaderboardListRow.jsx";
+import ActivityFeed from "../components/ActivityFeed/ActivityFeed.jsx";
+import LiveStatsTicker from "../components/ActivityFeed/LiveStatsTicker.jsx";
+import { ActivityToastProvider } from "../components/ActivityFeed/ActivityToast.jsx";
+import {
+  ActivityFeedRegisterOptimistic,
+  ActivityFeedRuntimeProvider,
+} from "../components/ActivityFeed/ActivityFeedProvider.jsx";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
 import { apiFetch } from "../lib/api.js";
+import { submitProductReviewToApi } from "../lib/submitProductReviewApi.js";
 import { categoryRibbonLabel, displayCompanyName, marketplaceListingPath, pillarKeyFromCategory } from "../lib/marketplaceDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { userAvatarInitials } from "../lib/personName.js";
@@ -25,8 +33,10 @@ import {
   deriveMostRecentVisitRow,
   journeyCompanyIdToApiSlug,
   journeyCompanyIdToPartnerLabel,
+  marketplaceCompanyDisplayName,
   partnerOriginalWebsiteUrl,
   partnerStorefrontPath,
+  trackingDisplayFirstName,
 } from "../lib/marketplaceUserTracking.js";
 import { useMarketplaceUserTracking } from "../hooks/useMarketplaceUserTracking.js";
 import {
@@ -361,6 +371,25 @@ export default function ExploreMarketplace() {
     yourJourneyItems,
     trackingUserKey,
   } = useMarketplaceUserTracking(user, isAuthenticated);
+
+  const optimisticActivityRef = useRef(null);
+
+  const visitedProductIds = useMemo(() => {
+    const s = new Set();
+    for (const v of visits) {
+      if (v.numericItemId != null) s.add(Number(v.numericItemId));
+    }
+    return s;
+  }, [visits]);
+
+  const [isLgViewport, setIsLgViewport] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const fn = () => setIsLgViewport(mq.matches);
+    fn();
+    mq.addEventListener("change", fn);
+    return () => mq.removeEventListener("change", fn);
+  }, []);
 
   const scrollToPartnerCompanies = useCallback(() => {
     document.getElementById("partner-marketplace")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -779,7 +808,7 @@ export default function ExploreMarketplace() {
     return () => window.removeEventListener("keydown", h);
   }, [drawerId, closeDrawer]);
 
-  function submitReview(e) {
+  async function submitReview(e) {
     e.preventDefault();
     setFormErr("");
     if (!isAuthenticated) {
@@ -805,6 +834,12 @@ export default function ExploreMarketplace() {
     }
     setSubmitting(true);
     try {
+      await submitProductReviewToApi(drawerId, {
+        title: titleIn.trim() || `Review · ${product.name}`,
+        body: b,
+        rating: stars,
+        recommend: true,
+      });
       recordReview({
         rating: stars,
         productId: drawerId,
@@ -812,6 +847,15 @@ export default function ExploreMarketplace() {
         companySlug: product.companySlug,
         itemName: product.name,
         comment: b,
+      });
+      optimisticActivityRef.current?.({
+        user_name: trackingDisplayFirstName(user) || user?.firstName?.trim() || hubGreetingName || "You",
+        product_name: product.name,
+        company_name: marketplaceCompanyDisplayName(product.companySlug),
+        company_slug: product.companySlug,
+        rating: stars,
+        review_text: b.slice(0, 60),
+        product_id: drawerId,
       });
       setStars(0);
       setTitleIn("");
@@ -822,7 +866,7 @@ export default function ExploreMarketplace() {
       setAnalyticsTick((t) => t + 1);
       load();
     } catch (err) {
-      setFormErr(err?.message || "Submit failed.");
+      setFormErr(err?.message || err?.payload?.error || "Submit failed.");
     } finally {
       setSubmitting(false);
     }
@@ -847,7 +891,10 @@ export default function ExploreMarketplace() {
   const total = Math.max(Number(dist?.total || 0), 1);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
+    <ActivityToastProvider>
+      <ActivityFeedRuntimeProvider visitedProductIds={visitedProductIds}>
+        <ActivityFeedRegisterOptimistic assignRef={optimisticActivityRef} />
+        <div className="min-h-screen bg-[#F8FAFC] text-[#111827] antialiased">
       <div className="relative z-10">
         <MarketingNav />
         <style>{`
@@ -1259,12 +1306,16 @@ export default function ExploreMarketplace() {
             </div>
           </section>
 
-          {/* SECTION 2 — Marketplace Top 5 (global) */}
-          <section className="border-t border-slate-200/85 bg-white py-10 lg:py-11">
-            <div className={SHELL}>
-              <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">
-                🏆 Top 5 Marketplace
-              </h2>
+          <LiveStatsTicker />
+
+          <div className={`${SHELL} grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start`}>
+            <div className="flex min-w-0 flex-col lg:col-span-2">
+              {/* SECTION 2 — Marketplace Top 5 (global) */}
+              <section className="border-t border-slate-200/85 bg-white py-10 lg:py-11">
+                <div className="w-full">
+                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">
+                    🏆 Top 5 Marketplace
+                  </h2>
               <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-slate-600">
                 Top listings based on visits, reviews, and ratings.
               </p>
@@ -1327,7 +1378,7 @@ export default function ExploreMarketplace() {
             </div>
 
             <div className="bg-[#f4f6fb] pb-10 pt-6 lg:pb-11 lg:pt-8">
-              <div className={SHELL}>
+              <div className="w-full">
                 {isAuthenticated ? (
                   <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter activity by company">
                     {ACTIVITY_COMPANY_FILTERS.map((f) => {
@@ -1461,7 +1512,7 @@ export default function ExploreMarketplace() {
 
           {/* SECTION 3 — Explore Partner Companies */}
           <section id="partner-marketplace" className="border-t border-white/60 bg-white/35 py-10 backdrop-blur-[2px] lg:py-11 scroll-mt-[88px]">
-            <div className={SHELL}>
+            <div className="w-full">
               <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.75rem]">Explore Partner Companies</h2>
               <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-slate-600">
                 Each partner storefront includes its own top-five products/services and full catalog.
@@ -1605,6 +1656,23 @@ export default function ExploreMarketplace() {
               </div>
             </div>
           </section>
+
+            </div>
+
+            <aside className="min-w-0 lg:col-span-1">
+              <div className="lg:sticky lg:top-24 lg:h-fit">
+                <ActivityFeed
+                  maxHeight={isLgViewport ? "600px" : "300px"}
+                  showHeader
+                  compact={!isLgViewport}
+                  filterCompany={null}
+                />
+                <Link to="/activity" className="mt-3 inline-block text-sm font-medium text-purple-600 hover:underline">
+                  View all activity →
+                </Link>
+              </div>
+            </aside>
+          </div>
 
           {/* SECTION 4 — Latest Reviews / Your activity */}
           <section className="border-t border-slate-200/85 bg-white py-10 lg:py-11">
@@ -2234,5 +2302,7 @@ export default function ExploreMarketplace() {
       </div>
       </div>
     </div>
+      </ActivityFeedRuntimeProvider>
+    </ActivityToastProvider>
   );
 }
