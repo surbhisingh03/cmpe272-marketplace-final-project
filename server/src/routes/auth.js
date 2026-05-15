@@ -12,6 +12,14 @@ import {
 
 const router = Router();
 
+/** When true, a user with Facebook (or OAuth placeholder email) but no password_hash can set their password by signing in with email + password once. */
+function allowFirstPasswordLinkOnLogin() {
+  const v = process.env.AUTH_LINK_PASSWORD_ON_LOGIN;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
 const PREFERRED_INTERESTS = new Set(["coffee", "creative", "travel", "academy", "all"]);
 const ACCOUNT_TYPES = new Set(["customer", "admin"]);
 
@@ -193,7 +201,7 @@ router.post("/login", async (req, res) => {
   let rows;
   try {
     [rows] = await pool.query(
-      `SELECT id, email, password_hash, display_name, avatar_url,
+      `SELECT id, email, password_hash, display_name, avatar_url, facebook_id,
               preferred_interest AS preferredInterest,
               account_type AS accountType
        FROM users WHERE email = :email LIMIT 1`,
@@ -201,18 +209,43 @@ router.post("/login", async (req, res) => {
     );
   } catch {
     [rows] = await pool.query(
-      "SELECT id, email, password_hash, display_name, avatar_url FROM users WHERE email = :email LIMIT 1",
+      "SELECT id, email, password_hash, display_name, avatar_url, facebook_id FROM users WHERE email = :email LIMIT 1",
       { email: String(email).toLowerCase().trim() }
     );
   }
   const user = rows[0];
-  if (!user || !user.password_hash) {
-    return res.status(401).json({
-      error:
-        "This account uses Facebook sign-in. Click “Continue with Facebook” below, or set a password if your team enabled that flow.",
-    });
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
   }
-  if (!(await bcrypt.compare(String(password), user.password_hash))) {
+
+  const pw = String(password);
+  if (!user.password_hash) {
+    const oauthPlaceholder = String(user.email || "").includes("@oauth.fusionhub.local");
+    const inDev = process.env.NODE_ENV !== "production";
+    const canLinkFirstPassword =
+      allowFirstPasswordLinkOnLogin() &&
+      pw.length >= 8 &&
+      (Boolean(user.facebook_id) || oauthPlaceholder || inDev);
+    if (canLinkFirstPassword) {
+      const hash = await bcrypt.hash(pw, 11);
+      await pool.query("UPDATE users SET password_hash = :h WHERE id = :id", {
+        h: hash,
+        id: user.id,
+      });
+      user.password_hash = hash;
+    } else {
+      return res.status(401).json({
+        error:
+          "This account uses Facebook sign-in. Use “Continue with Facebook”, then open Dashboard → Settings to add a password for email sign-in.",
+        hint:
+          process.env.NODE_ENV === "production"
+            ? "Your instructor can set AUTH_LINK_PASSWORD_ON_LOGIN=true on the server to allow a one-time password link from this screen (less secure)."
+            : undefined,
+      });
+    }
+  }
+
+  if (!(await bcrypt.compare(pw, user.password_hash))) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
   const accountType = user.accountType ?? "customer";
@@ -233,6 +266,7 @@ router.post("/login", async (req, res) => {
       preferredInterest: user.preferredInterest ?? null,
       accountType,
       role,
+      hasPassword: true,
     },
   });
 });
@@ -450,13 +484,14 @@ router.get("/me", requireAuth, async (req, res) => {
     [rows] = await pool.query(
       `SELECT id, email, display_name AS displayName, avatar_url AS avatarUrl,
               phone, preferred_interest AS preferredInterest,
-              account_type AS accountType, created_at AS created_at
+              account_type AS accountType, created_at AS created_at,
+              (password_hash IS NOT NULL AND LENGTH(TRIM(COALESCE(password_hash, ''))) > 0) AS "hasPassword"
        FROM users WHERE id = :id LIMIT 1`,
       { id: req.user.id }
     );
   } catch {
     [rows] = await pool.query(
-      "SELECT id, email, display_name AS displayName, avatar_url AS avatarUrl, created_at FROM users WHERE id = :id LIMIT 1",
+      "SELECT id, email, display_name AS displayName, avatar_url AS avatarUrl, created_at, FALSE AS \"hasPassword\" FROM users WHERE id = :id LIMIT 1",
       { id: req.user.id }
     );
   }
@@ -469,7 +504,45 @@ router.get("/me", requireAuth, async (req, res) => {
     name: row.displayName,
     accountType,
     role,
+    hasPassword: Boolean(row.hasPassword),
   });
+});
+
+/**
+ * Set password (first time for Facebook-only users) or change password (requires currentPassword).
+ */
+router.post("/password", requireAuth, async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const newPassword = String(body.password ?? body.newPassword ?? "");
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+    const pool = getPool();
+    const [userRows] = await pool.query(
+      "SELECT id, password_hash FROM users WHERE id = :id LIMIT 1",
+      { id: req.user.id }
+    );
+    const u = userRows[0];
+    if (!u) return res.status(404).json({ error: "User not found" });
+
+    const hadPassword = Boolean(u.password_hash);
+    if (hadPassword) {
+      const current = String(body.currentPassword ?? "");
+      if (!current) {
+        return res.status(400).json({ error: "Current password is required to change your password" });
+      }
+      if (!(await bcrypt.compare(current, u.password_hash))) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+    }
+
+    const hash = await bcrypt.hash(newPassword, 11);
+    await pool.query("UPDATE users SET password_hash = :h WHERE id = :id", { h: hash, id: u.id });
+    res.json({ ok: true, hasPassword: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;
