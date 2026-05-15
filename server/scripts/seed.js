@@ -2,7 +2,8 @@
  * FusionHub Marketplace seed (PostgreSQL / Supabase).
  *
  * Reads DATABASE_URL (Supabase connection string), drops + recreates the
- * marketplace tables, then loads companies / products / users / reviews.
+ * marketplace tables, then loads companies, products, and an admin user.
+ * Reviews are not pre-seeded; they come from real signups.
  *
  * Run: npm run seed   (from project root)  — or:  node scripts/seed.js
  */
@@ -60,8 +61,8 @@ async function main() {
       banner_url:
         "https://images.unsplash.com/photo-1447933601403-0c6688de94e5?w=1600&q=80",
       external_url: "https://srikavyagelli.com/index.php",
-      avg_rating: 4.82,
-      review_count: 214,
+      avg_rating: 0,
+      review_count: 0,
     },
     {
       slug: "krativerse",
@@ -72,8 +73,8 @@ async function main() {
       banner_url:
         "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=1600&q=80",
       external_url: "https://krativerse.com/",
-      avg_rating: 4.76,
-      review_count: 189,
+      avg_rating: 0,
+      review_count: 0,
     },
     {
       slug: "travel-agency",
@@ -84,8 +85,8 @@ async function main() {
       banner_url:
         "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1600&q=80",
       external_url: "https://surbhisingh.com/travel-agency/index.php",
-      avg_rating: 4.71,
-      review_count: 156,
+      avg_rating: 0,
+      review_count: 0,
     },
     {
       slug: "nexus-academy",
@@ -96,8 +97,8 @@ async function main() {
       banner_url:
         "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1600&q=80",
       external_url: "http://geeshitha.com/nexus-academy/",
-      avg_rating: 4.69,
-      review_count: 142,
+      avg_rating: 0,
+      review_count: 0,
     },
   ];
 
@@ -124,11 +125,7 @@ async function main() {
   const products = getMarketplaceProductSeeds(idBySlug);
 
   for (const p of products) {
-    const score = computePopularityScore(
-      p.visits,
-      p.seedAvg ?? 4.7,
-      p.seedReviews ?? 30
-    );
+    const score = computePopularityScore(p.visits, 0, 0);
     await client.query(
       `INSERT INTO products (company_id, slug, name, excerpt, description, hero_image, category, visit_count, popularity_score, listing_details)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
@@ -147,76 +144,12 @@ async function main() {
     );
   }
 
-  const demoHash = await bcrypt.hash("MarketplaceDemo!", 11);
-  await client.query(
-    `INSERT INTO users (email, password_hash, display_name, phone, preferred_interest, account_type)
-     VALUES ($1, $2, $3, $4, 'all', 'customer')`,
-    ["marketplace-demo@fusionhub.demo", demoHash, "Marketplace Demo", ""]
-  );
-
   const adminHash = await bcrypt.hash("fusionhub123", 11);
   await client.query(
     `INSERT INTO users (email, password_hash, display_name, phone, preferred_interest, account_type)
      VALUES ($1, $2, $3, $4, 'all', 'admin')`,
     ["admin@fusionhub.demo", adminHash, "FusionHub Admin", ""]
   );
-
-  const reviewsPlanned = products.reduce(
-    (acc, row) => acc + Number(row.seedReviews || 22),
-    0
-  );
-  const reviewPoolTarget = reviewsPlanned + 400;
-
-  const reviewUserHash = await bcrypt.hash("FusionReviewPool#1", 4);
-  for (let i = 1; i <= reviewPoolTarget; i++) {
-    await client.query(
-      `INSERT INTO users (email, password_hash, display_name, phone, preferred_interest, account_type)
-       VALUES ($1, $2, $3, $4, 'all', 'customer')`,
-      [
-        `review.pool.${i}@fusionhub.demo`,
-        reviewUserHash,
-        `Marketplace reviewer ${i}`,
-        "",
-      ]
-    );
-  }
-
-  const { rows: prows } = await client.query("SELECT id, slug FROM products");
-  const slugToProductId = Object.fromEntries(prows.map((r) => [r.slug, r.id]));
-
-  function ratingsFoursAndFives(n, avg) {
-    const clampedAvg = Math.max(4.05, Math.min(4.95, avg));
-    let hi = Math.round(n * (clampedAvg - 4));
-    hi = Math.max(0, Math.min(n, hi));
-    return [...Array(hi).fill(5), ...Array(n - hi).fill(4)];
-  }
-
-  const { rows: poolRows } = await client.query(
-    "SELECT id FROM users WHERE email LIKE 'review.pool.%@fusionhub.demo' ORDER BY id"
-  );
-  const reviewerIds = poolRows.map((r) => r.id);
-  let rCursor = 0;
-
-  const reviewTargetsBySlug = products.map((p) => [p.slug, p.seedReviews, p.seedAvg]);
-  for (const [slug, count, avg] of reviewTargetsBySlug) {
-    const productId = slugToProductId[slug];
-    if (!productId) continue;
-    const ratings = ratingsFoursAndFives(count, avg);
-    for (let i = 0; i < count; i++) {
-      const uid = reviewerIds[rCursor++];
-      await client.query(
-        `INSERT INTO reviews (user_id, product_id, title, body, rating, recommend, verified, status)
-         VALUES ($1, $2, $3, $4, $5, TRUE, TRUE, 'published')`,
-        [
-          uid,
-          productId,
-          `Verified shopper note ${i + 1}`,
-          "Seeded FusionHub Marketplace review powering ratings, personalization, and top-five leaderboard analytics.",
-          ratings[i],
-        ]
-      );
-    }
-  }
 
   const { rows: everyProduct } = await client.query(
     `SELECT id, visit_count FROM products`

@@ -11,9 +11,6 @@ import { useAuth } from "../context/AuthContext.jsx";
 const REMEMBER_KEY = "fh_login_remember";
 const SAVED_EMAIL_KEY = "fh_login_email";
 
-const DEMO_EMAIL = "marketplace-demo@fusionhub.demo";
-const DEMO_PASSWORD = "MarketplaceDemo!";
-
 const submitBtnClass =
   "flex h-[46px] w-full cursor-pointer items-center justify-center rounded-[10px] border-0 text-[15px] font-bold text-white transition hover:opacity-90 disabled:pointer-events-none disabled:opacity-50";
 
@@ -182,24 +179,6 @@ export default function Login() {
     }
   }
 
-  async function onDemoContinue() {
-    setBusy(true);
-    setError("");
-    setFieldErrors({});
-    try {
-      setEmail(DEMO_EMAIL);
-      await finalizeLogin(DEMO_EMAIL, DEMO_PASSWORD);
-    } catch (err) {
-      setError(
-        err.message ||
-          [err.payload?.error, err.payload?.hint].filter(Boolean).join(" ") ||
-          "Demo sign-in failed. Run `npm run seed` in the server folder to create the demo user."
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC] antialiased">
       <MarketingNav />
@@ -310,18 +289,6 @@ export default function Login() {
             </a>
           </>
         ) : null}
-
-        <button
-          type="button"
-          name="demo_continue"
-          disabled={busy}
-          onClick={onDemoContinue}
-          className={`h-[44px] w-full rounded-[10px] border-[1.5px] border-[#e5e7eb] bg-white text-[14px] font-semibold text-slate-800 transition hover:border-[#7c3aed]/40 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-50 ${
-            facebookEnabled === true ? "mt-4" : "mt-8"
-          }`}
-        >
-          Continue as Demo User
-        </button>
 
         <p className="mt-8 text-center text-xs text-slate-500">
           Don’t have an account?{" "}

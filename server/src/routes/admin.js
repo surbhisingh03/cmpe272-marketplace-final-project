@@ -99,9 +99,8 @@ router.post("/login", async (req, res) => {
 router.get("/overview", requireAuth, ensureAdmin, async (req, res) => {
   const pool = getPool();
 
-  /** Exclude synthetic seed-only reviewers (see server/scripts/seed.js review pool). */
   const [[counts]] = await pool.query(`SELECT 
-    (SELECT COUNT(*) FROM users WHERE email NOT LIKE 'review.pool.%@fusionhub.demo') AS users,
+    (SELECT COUNT(*) FROM users) AS users,
     (SELECT COUNT(*) FROM visits) AS visits,
     (SELECT COUNT(*) FROM reviews WHERE status='published') AS reviews,
     (SELECT COUNT(*) FROM products) AS products
