@@ -1,18 +1,49 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard.jsx";
 import { apiFetch } from "../../lib/api.js";
 import LeaderboardListRow from "../../components/marketplace/LeaderboardListRow.jsx";
 import { marketplaceListingPath } from "../../lib/marketplaceDisplay.js";
 import { useCatalog } from "../../context/CatalogContext.jsx";
+import { subscribeAnalyticsUpdated } from "../../lib/fusionhubAnalytics.js";
+import {
+  getExploreHubTopFiveMergedRows,
+  getExplorePartnerCompanyTopListings,
+  mapCatalogItemsToExploreItemsLive,
+} from "../../lib/exploreMarketplaceTopFive.js";
 
 export default function DashboardTopProducts() {
   const { companies } = useCatalog();
-  const [board, setBoard] = useState(null);
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [analyticsTick, setAnalyticsTick] = useState(0);
 
   useEffect(() => {
-    apiFetch("/api/marketplace/leaderboards").then(setBoard).catch(() => {});
+    const off = subscribeAnalyticsUpdated(() => setAnalyticsTick((t) => t + 1));
+    return off;
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/marketplace/catalog")
+      .then((res) => {
+        if (cancelled) return;
+        const list = res?.items;
+        setCatalogItems(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const itemsLive = useMemo(() => {
+    void analyticsTick;
+    return mapCatalogItemsToExploreItemsLive(catalogItems);
+  }, [catalogItems, analyticsTick]);
+
+  const hubTopFiveMerged = useMemo(() => getExploreHubTopFiveMergedRows(itemsLive), [itemsLive]);
 
   return (
     <div className="space-y-8">
@@ -26,16 +57,16 @@ export default function DashboardTopProducts() {
       <GlassCard className="p-6">
         <div className="font-display text-xl font-semibold text-[#111827]">🏆 Top 5 Marketplace</div>
         <div className="mt-6 flex flex-col gap-3">
-          {(board?.globalTop || []).map((p, i) => (
+          {hubTopFiveMerged.map((row) => (
             <LeaderboardListRow
-              key={p.id}
-              rank={i + 1}
-              title={p.name}
-              subtitle={p.companyName}
-              category={p.category}
-              reviewCount={p.reviewCount}
-              avgRating={p.avgRating}
-              to={p.slug ? marketplaceListingPath(p.slug) : `/marketplace/products/${p.id}`}
+              key={row.id}
+              rank={row.rank}
+              title={row.title}
+              subtitle={row.companyLabel}
+              category={row.category}
+              reviewCount={row.reviewsDisplay}
+              avgRating={row.ratingDisplay}
+              to={row.listingTo}
             />
           ))}
         </div>
@@ -43,7 +74,7 @@ export default function DashboardTopProducts() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {companies.map((c) => {
-          const top = board?.perCompany?.[String(c.id)] || [];
+          const top = getExplorePartnerCompanyTopListings(itemsLive, c.slug);
           return (
             <GlassCard key={c.slug} className="p-6">
               <div className="flex items-center justify-between gap-3">
@@ -59,7 +90,7 @@ export default function DashboardTopProducts() {
                 </Link>
               </div>
               <ul className="mt-5 flex list-none flex-col gap-3 p-0">
-                {top.slice(0, 5).map((p, i) => (
+                {top.map((p, i) => (
                   <li key={p.id} className="list-none">
                     <LeaderboardListRow
                       rank={i + 1}
