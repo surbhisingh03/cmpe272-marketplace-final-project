@@ -14,7 +14,7 @@ A full-stack B2B marketplace for CMPE 272 that unifies four member company store
 
 ## Live Demo
 
-**FusionHub Marketplace:** https://www.fusionhub.me  
+**FusionHub Marketplace:** https://www.fusionhub.me
 
 ## Tech stack
 

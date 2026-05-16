@@ -148,6 +148,7 @@ export default function Login() {
       preferredInterest: res.user.preferredInterest,
       accountType: res.user.accountType,
       role,
+      hasPassword: res.user.hasPassword !== false,
     });
     applyRememberPreference(emailUsed);
     if (role === "admin") {
