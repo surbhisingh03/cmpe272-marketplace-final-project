@@ -12,6 +12,10 @@ A full-stack B2B marketplace for CMPE 272 that unifies four member company store
 - **Admin console** — Users, visits, activity, reviews moderation, listings, rankings, and partners at `/admin`.
 - **ShopVerse AI** — In-app chat assistant (Groq) to help users navigate the marketplace.
 
+## Live Demo
+
+**FusionHub Marketplace:** https://www.fusionhub.me
+
 ## Tech stack
 
 | Layer | Stack |

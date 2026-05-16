@@ -68,3 +68,10 @@ export async function apiFetch(path, options = {}) {
   }
   return data;
 }
+
+/** Persist a listing visit for signed-in users (powers `/api/user/summary` dashboard analytics). */
+export function notifyServerProductVisit(productId) {
+  const id = Number(productId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  void apiFetch(`/api/marketplace/products/${id}/visit`, { method: "POST" }).catch(() => {});
+}

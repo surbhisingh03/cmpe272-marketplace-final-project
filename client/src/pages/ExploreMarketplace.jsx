@@ -7,6 +7,7 @@ import {
   FiEdit3,
   FiExternalLink,
   FiEye,
+  FiHeart,
   FiPackage,
   FiSearch,
   FiStar,
@@ -30,7 +31,9 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { userAvatarInitials } from "../lib/personName.js";
 import {
   apiCompanySlugToJourneyCompanyId,
+  consumeSessionOnceKey,
   deriveMostRecentVisitRow,
+  getMarketplaceTrackingUserKey,
   journeyCompanyIdToApiSlug,
   journeyCompanyIdToPartnerLabel,
   marketplaceCompanyDisplayName,
@@ -48,7 +51,11 @@ import {
   readAnalyticsVisits,
   subscribeAnalyticsUpdated,
 } from "../lib/fusionhubAnalytics.js";
-import { calculateEngagementScore } from "../lib/engagementScore.js";
+import {
+  getExploreHubTopFiveMergedRows,
+  getExplorePartnerCompanyTopListings,
+  mapCatalogItemsToExploreItemsLive,
+} from "../lib/exploreMarketplaceTopFive.js";
 
 function formatReviewWhen(iso) {
   try {
@@ -273,12 +280,6 @@ function mergeHubListing(itemsLive, slug, displayTitle) {
   };
 }
 
-function partnerCompanyTopListings(itemsLive, companySlug) {
-  const sub = itemsLive.filter((i) => i.companySlug === companySlug);
-  return [...sub].sort(compareListingsByPopularityDesc).slice(0, 5);
-}
-
-/** Shared hover polish for primary CTAs on the hub */
 const HUB_GRADIENT_HOVER =
   "transition duration-300 hover:brightness-[1.045] hover:shadow-[0_10px_32px_-8px_rgba(124,58,237,0.38),0_6px_20px_-10px_rgba(6,182,212,0.22)] active:brightness-[1.02]";
 
@@ -286,6 +287,8 @@ function MarketplaceListingCard({
   listing,
   onOpenDetails,
   onWriteReview,
+  onToggleFavorite,
+  isFavorite = false,
   compactCaption = false,
 }) {
   const company = displayCompanyName(listing.companySlug);
@@ -301,6 +304,22 @@ function MarketplaceListingCard({
         <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800 shadow-sm ring-1 ring-slate-200/80">
           {badge}
         </span>
+        {onToggleFavorite ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(listing, e);
+            }}
+            className="absolute right-3 top-3 rounded-full bg-white/95 p-2 shadow-sm ring-1 ring-slate-200/80 transition hover:bg-white hover:ring-violet-200"
+            aria-label={isFavorite ? "Remove from saved listings" : "Save listing"}
+          >
+            <FiHeart
+              className={`h-5 w-5 ${isFavorite ? "fill-rose-500 text-rose-500" : "text-slate-600"}`}
+              aria-hidden
+            />
+          </button>
+        ) : null}
       </div>
       <div className={`flex min-h-0 flex-1 flex-col px-4 ${compactCaption ? "pb-3 pt-2.5" : "pb-4 pt-3"}`}>
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{company}</p>
@@ -405,6 +424,9 @@ export default function ExploreMarketplace() {
   const [activityCompanyFilter, setActivityCompanyFilter] = useState("all");
   const [sort, setSort] = useState("popular");
 
+  const [favIds, setFavIds] = useState(() => new Set());
+  const [favToast, setFavToast] = useState("");
+
   const [drawerId, setDrawerId] = useState(null);
   const [drawerLoad, setDrawerLoad] = useState(false);
   const [product, setProduct] = useState(null);
@@ -422,6 +444,30 @@ export default function ExploreMarketplace() {
     const off = subscribeAnalyticsUpdated(() => setAnalyticsTick((t) => t + 1));
     return off;
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    apiFetch("/api/marketplace/favorites")
+      .then((rows) => {
+        if (cancelled) return;
+        const arr = Array.isArray(rows) ? rows : [];
+        setFavIds(new Set(arr.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!favToast) return;
+    const t = window.setTimeout(() => setFavToast(""), 2400);
+    return () => window.clearTimeout(t);
+  }, [favToast]);
 
   const [hubHeroSearchQuery, setHubHeroSearchQuery] = useState("");
   const [hubHeroSearchDebounced, setHubHeroSearchDebounced] = useState("");
@@ -498,23 +544,7 @@ export default function ExploreMarketplace() {
 
   const itemsLive = useMemo(() => {
     void analyticsTick;
-    return items.map((it) => {
-      const a = getProductAnalytics(it.id);
-      const visitCount = a.visits;
-      const reviewCount = a.reviewCount;
-      const avgRating = reviewCount > 0 ? a.avgRating : 0;
-      return {
-        ...it,
-        visitCount,
-        reviewCount,
-        avgRating,
-        popularityScore: calculateEngagementScore({
-          visitCount,
-          reviewCount,
-          averageRating: avgRating,
-        }),
-      };
-    });
+    return mapCatalogItemsToExploreItemsLive(items);
   }, [items, analyticsTick]);
 
   const stats = useMemo(() => {
@@ -559,25 +589,7 @@ export default function ExploreMarketplace() {
     [itemsLive],
   );
 
-  const hubTopFiveMerged = useMemo(() => {
-    const sorted = [...itemsLive].sort(compareListingsByPopularityDesc);
-    return sorted.slice(0, 5).map((row, i) => ({
-      rank: i + 1,
-      slug: row.slug,
-      id: row.id,
-      companySlug: row.companySlug,
-      title: row.name,
-      companyLabel: displayCompanyName(row.companySlug),
-      heroImage: row.heroImage,
-      category: row.category,
-      ratingDisplay: row.reviewCount > 0 ? row.avgRating : 0,
-      reviewsDisplay: row.reviewCount,
-      visitsDisplay: row.visitCount,
-      popularityScore: row.popularityScore ?? 0,
-      listingTo:
-        row.slug != null ? marketplaceListingPath(row.slug) : `/marketplace/products/${row.id}`,
-    }));
-  }, [itemsLive]);
+  const hubTopFiveMerged = useMemo(() => getExploreHubTopFiveMergedRows(itemsLive), [itemsLive]);
 
   const latestReviewsFeed = useMemo(() => {
     void analyticsTick;
@@ -612,6 +624,38 @@ export default function ExploreMarketplace() {
   const goViewAll = useCallback(() => navigate("/marketplace/explore?all=1"), [navigate]);
 
   const closeDrawer = useCallback(() => setDrawerId(null), []);
+
+  const toggleListingFavorite = useCallback(
+    async (listing, e) => {
+      e?.stopPropagation?.();
+      if (listing?.id == null) return;
+      const pid = Number(listing.id);
+      if (!Number.isFinite(pid)) return;
+      if (!isAuthenticated) {
+        navigate("/login", { state: { from: "/marketplace/explore" } });
+        return;
+      }
+      const wasFav = favIds.has(pid);
+      try {
+        if (wasFav) {
+          await apiFetch(`/api/marketplace/favorites/${pid}`, { method: "DELETE" });
+          setFavIds((s) => {
+            const n = new Set(s);
+            n.delete(pid);
+            return n;
+          });
+          setFavToast("Removed from favorites");
+        } else {
+          await apiFetch(`/api/marketplace/favorites/${pid}`, { method: "POST" });
+          setFavIds((s) => new Set(s).add(pid));
+          setFavToast("Saved to favorites");
+        }
+      } catch {
+        setFavToast("Could not update favorites");
+      }
+    },
+    [isAuthenticated, navigate, favIds],
+  );
 
   const openListingOrStorefront = useCallback(
     (listing) => {
@@ -801,6 +845,20 @@ export default function ExploreMarketplace() {
       document.body.style.overflow = "";
     };
   }, [drawerId]);
+
+  useEffect(() => {
+    if (!drawerId || !product?.companySlug || !isAuthenticated || !user) return;
+    const uk = getMarketplaceTrackingUserKey(user);
+    if (!uk || !consumeSessionOnceKey(`${uk}|explore-drawer|${drawerId}`)) return;
+    recordVisit({
+      companySlug: product.companySlug,
+      action: "view_details",
+      itemSlug: product.slug ?? null,
+      numericItemId: Number(drawerId),
+      itemName: product.name,
+      path: "/marketplace/explore",
+    });
+  }, [drawerId, product, isAuthenticated, user, recordVisit]);
 
   useEffect(() => {
     const h = (e) => e.key === "Escape" && drawerId && closeDrawer();
@@ -1521,7 +1579,7 @@ export default function ExploreMarketplace() {
               <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-7">
                 {PARTNERS.map((corp) => {
                   const Icon = corp.icon;
-                  const topList = partnerCompanyTopListings(itemsLive, corp.slug);
+                  const topList = getExplorePartnerCompanyTopListings(itemsLive, corp.slug);
                   const companyListingCount = itemsLive.filter((i) => i.companySlug === corp.slug).length;
                   const totals = partnerPresentation[corp.slug];
                   const journeyId = apiCompanySlugToJourneyCompanyId(corp.slug);
@@ -1892,6 +1950,8 @@ export default function ExploreMarketplace() {
                       key={listing.slug}
                       listing={listing}
                       compactCaption
+                      isFavorite={favIds.has(Number(listing.id))}
+                      onToggleFavorite={toggleListingFavorite}
                       onOpenDetails={(l) => openListingOrStorefront(l)}
                       onWriteReview={(l) => openReview(l)}
                     />
@@ -2122,6 +2182,8 @@ export default function ExploreMarketplace() {
                     <MarketplaceListingCard
                       key={item.id}
                       listing={item}
+                      isFavorite={favIds.has(Number(item.id))}
+                      onToggleFavorite={toggleListingFavorite}
                       onOpenDetails={(l) => openListingOrStorefront(l)}
                       onWriteReview={(l) => openReview(l)}
                     />
@@ -2134,6 +2196,15 @@ export default function ExploreMarketplace() {
       )}
 
       <MarketingFooter />
+
+      {favToast ? (
+        <div
+          role="status"
+          className="pointer-events-none fixed bottom-6 right-6 z-[110] max-w-sm rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-lg"
+        >
+          {favToast}
+        </div>
+      ) : null}
 
       {/* Drawer */}
       <div

@@ -1,4 +1,5 @@
 import { displayCompanyName } from "./marketplaceDisplay.js";
+import { notifyServerProductVisit } from "./api.js";
 import {
   appendAnalyticsReview,
   appendAnalyticsVisit,
@@ -405,6 +406,7 @@ export function appendMarketplaceVisit({
         action: "view_details",
         path: pathOk,
       });
+      notifyServerProductVisit(productItemId);
       writeLastVisitedLine(`${resolvedName} • ${companyName}`);
     } else {
       appendAnalyticsVisit({
@@ -465,6 +467,7 @@ export function appendMarketplaceVisit({
     action: "view_details",
     path: pathOk,
   });
+  notifyServerProductVisit(productItemId);
   writeLastVisitedLine(`${resolvedName} • ${companyName}`);
   persistCurrentTrackedUser({ userKey, user: label });
   emitTrackingUpdated();

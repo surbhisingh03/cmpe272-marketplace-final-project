@@ -37,38 +37,9 @@ const SORT_OPTIONS = [
   { key: "newest", label: "Newest" },
 ];
 
-const FAVORITES_LS_KEY = "fh_company_storefront_favorites";
-
 function visitCountLabel(n) {
   const v = Number(n) || 0;
   return `${v.toLocaleString()} ${v === 1 ? "visit" : "visits"}`;
-}
-
-function readFavoriteIds() {
-  try {
-    const raw = localStorage.getItem(FAVORITES_LS_KEY);
-    const arr = JSON.parse(raw || "[]");
-    return Array.isArray(arr) ? new Set(arr.map((x) => String(x))) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function toggleFavoriteId(productId) {
-  const id = String(productId);
-  const set = readFavoriteIds();
-  if (set.has(id)) set.delete(id);
-  else set.add(id);
-  try {
-    localStorage.setItem(FAVORITES_LS_KEY, JSON.stringify([...set]));
-  } catch {
-    /* ignore */
-  }
-  return set.has(id);
-}
-
-function isFavoriteId(productId) {
-  return readFavoriteIds().has(String(productId));
 }
 
 function RatingStarsRow({ avg }) {
@@ -163,7 +134,7 @@ export default function StorefrontMarketplaceView({
   const tabBtnRefs = useRef([]);
   const [tabIndicator, setTabIndicator] = useState({ left: 0, width: 0 });
 
-  const [favoritesTick, setFavoritesTick] = useState(0);
+  const [favIds, setFavIds] = useState(() => new Set());
   const [heartPulseId, setHeartPulseId] = useState(null);
 
   const [quickOpenId, setQuickOpenId] = useState(null);
@@ -189,6 +160,82 @@ export default function StorefrontMarketplaceView({
     const off = subscribeAnalyticsUpdated(() => setAnalyticsTick((t) => t + 1));
     return off;
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    const legacyLsKey = "fh_company_storefront_favorites";
+    (async () => {
+      try {
+        const rows = await apiFetch("/api/marketplace/favorites");
+        if (cancelled) return;
+        const next = new Set(
+          (Array.isArray(rows) ? rows : []).map((r) => Number(r.id)).filter((n) => Number.isFinite(n)),
+        );
+        try {
+          const raw = localStorage.getItem(legacyLsKey);
+          const lsArr = raw ? JSON.parse(raw) : null;
+          if (Array.isArray(lsArr) && lsArr.length) {
+            for (const x of lsArr) {
+              const pid = Number(x);
+              if (!Number.isFinite(pid) || next.has(pid)) continue;
+              try {
+                await apiFetch(`/api/marketplace/favorites/${pid}`, { method: "POST" });
+                next.add(pid);
+              } catch {
+                /* skip */
+              }
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        try {
+          localStorage.removeItem(legacyLsKey);
+        } catch {
+          /* ignore */
+        }
+        if (!cancelled) setFavIds(next);
+      } catch {
+        if (!cancelled) setFavIds(new Set());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  const toggleStorefrontFavorite = useCallback(
+    async (productId, e) => {
+      e?.stopPropagation?.();
+      const pid = Number(productId);
+      if (!Number.isFinite(pid)) return;
+      if (!isAuthenticated) {
+        navigate("/login", { state: { from: internalStorefrontPath } });
+        return;
+      }
+      const was = favIds.has(pid);
+      try {
+        if (was) {
+          await apiFetch(`/api/marketplace/favorites/${pid}`, { method: "DELETE" });
+          setFavIds((s) => {
+            const n = new Set(s);
+            n.delete(pid);
+            return n;
+          });
+        } else {
+          await apiFetch(`/api/marketplace/favorites/${pid}`, { method: "POST" });
+          setFavIds((s) => new Set(s).add(pid));
+        }
+      } catch {
+        /* keep prior state */
+      }
+    },
+    [isAuthenticated, navigate, internalStorefrontPath, favIds],
+  );
 
   const productsLive = useMemo(() => {
     void analyticsTick;
@@ -681,8 +728,7 @@ export default function StorefrontMarketplaceView({
                 ) : (
                   <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                     {filteredCatalog.map((p) => {
-                      const favOn = isFavoriteId(p.id);
-                      void favoritesTick;
+                      const favOn = favIds.has(Number(p.id));
                       return (
                         <article
                           key={p.id}
@@ -705,9 +751,8 @@ export default function StorefrontMarketplaceView({
                             <button
                               type="button"
                               aria-label={favOn ? "Remove from favorites" : "Add to favorites"}
-                              onClick={() => {
-                                toggleFavoriteId(p.id);
-                                setFavoritesTick((x) => x + 1);
+                              onClick={(e) => {
+                                void toggleStorefrontFavorite(p.id, e);
                                 setHeartPulseId(p.id);
                                 window.setTimeout(() => {
                                   setHeartPulseId((cur) => (cur === p.id ? null : cur));

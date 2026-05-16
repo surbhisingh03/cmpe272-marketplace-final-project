@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiArrowLeft, FiExternalLink } from "react-icons/fi";
+import { FiArrowLeft, FiExternalLink, FiHeart } from "react-icons/fi";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import MarketingFooter from "../components/layout/MarketingFooter.jsx";
 import MarketingNav from "../components/layout/MarketingNav.jsx";
@@ -206,11 +206,37 @@ export default function MarketplaceListingDetail() {
   const [formErr, setFormErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [favIds, setFavIds] = useState(() => new Set());
+  const [favToast, setFavToast] = useState("");
 
   useEffect(() => {
     const off = subscribeAnalyticsUpdated(() => setLsTick((t) => t + 1));
     return off;
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    apiFetch("/api/marketplace/favorites")
+      .then((rows) => {
+        if (cancelled) return;
+        const arr = Array.isArray(rows) ? rows : [];
+        setFavIds(new Set(arr.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!favToast) return;
+    const t = window.setTimeout(() => setFavToast(""), 2400);
+    return () => window.clearTimeout(t);
+  }, [favToast]);
 
   const reload = useCallback(async () => {
     if (!slug) return;
@@ -335,6 +361,32 @@ export default function MarketplaceListingDetail() {
       action: "open_storefront",
       path: storefrontPath,
     });
+  };
+
+  const toggleListingFavorite = async () => {
+    if (productId == null) return;
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: marketplaceListingPath(slug) } });
+      return;
+    }
+    const was = favIds.has(productId);
+    try {
+      if (was) {
+        await apiFetch(`/api/marketplace/favorites/${productId}`, { method: "DELETE" });
+        setFavIds((s) => {
+          const n = new Set(s);
+          n.delete(productId);
+          return n;
+        });
+        setFavToast("Removed from favorites");
+      } else {
+        await apiFetch(`/api/marketplace/favorites/${productId}`, { method: "POST" });
+        setFavIds((s) => new Set(s).add(productId));
+        setFavToast("Saved to favorites");
+      }
+    } catch {
+      setFavToast("Could not update favorites");
+    }
   };
 
   async function submitReview(e) {
@@ -543,6 +595,18 @@ export default function MarketplaceListingDetail() {
                   className="inline-flex min-h-[44px] w-full items-center justify-center rounded-2xl border-2 border-violet-200 bg-white px-5 text-sm font-bold text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-50/80"
                 >
                   Write a Review
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleListingFavorite}
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-800 shadow-sm transition hover:border-violet-300 hover:bg-slate-50/90"
+                  aria-label={productId != null && favIds.has(productId) ? "Remove from saved listings" : "Save listing"}
+                >
+                  <FiHeart
+                    className={`h-4 w-4 shrink-0 ${productId != null && favIds.has(productId) ? "fill-rose-500 text-rose-500" : "text-slate-600"}`}
+                    aria-hidden
+                  />
+                  {productId != null && favIds.has(productId) ? "Saved" : "Save listing"}
                 </button>
                 <Link
                   to={storefrontPath}
@@ -779,6 +843,14 @@ export default function MarketplaceListingDetail() {
         </main>
 
         <MarketingFooter />
+        {favToast ? (
+          <div
+            role="status"
+            className="pointer-events-none fixed bottom-6 right-6 z-[110] max-w-sm rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-lg"
+          >
+            {favToast}
+          </div>
+        ) : null}
       </div>
     </div>
   );

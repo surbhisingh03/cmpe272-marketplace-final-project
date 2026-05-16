@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiBookmark, FiChevronLeft, FiChevronRight, FiExternalLink } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiExternalLink, FiHeart } from "react-icons/fi";
 import PublicShell from "../components/layout/PublicShell.jsx";
 import GlassCard from "../components/ui/GlassCard.jsx";
 import { apiFetch } from "../lib/api.js";
@@ -16,6 +16,9 @@ import {
 import {
   apiCompanySlugToJourneyCompanyId,
   appendCompanySurfaceVisit,
+  appendMarketplaceVisit,
+  consumeSessionOnceKey,
+  getMarketplaceTrackingUserKey,
   partnerOriginalWebsiteUrl,
   partnerStorefrontPath,
   trackingDisplayFirstName,
@@ -160,7 +163,7 @@ export default function ProductDetail() {
       apiFetch("/api/marketplace/favorites")
         .then((rows) => {
           if (cancelled) return;
-          setFavIds(new Set(rows.map((r) => r.id)));
+          setFavIds(new Set(rows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n))));
         })
         .catch(() => {});
     }
@@ -168,6 +171,23 @@ export default function ProductDetail() {
       cancelled = true;
     };
   }, [id, isAuthenticated, reload]);
+
+  useEffect(() => {
+    const p = data?.product;
+    if (!p?.companySlug || !isAuthenticated || !user || p.id == null) return;
+    const uk = getMarketplaceTrackingUserKey(user);
+    if (!uk || !consumeSessionOnceKey(`${uk}|product|${p.id}`)) return;
+    appendMarketplaceVisit({
+      user,
+      hubFirstName: trackingDisplayFirstName(user),
+      companySlug: p.companySlug,
+      action: "view_details",
+      itemSlug: p.slug ?? null,
+      numericItemId: p.id,
+      itemName: p.name,
+      path: `/marketplace/products/${p.id}`,
+    });
+  }, [data?.product, isAuthenticated, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -428,8 +448,8 @@ export default function ProductDetail() {
                     onClick={toggleFav}
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/15"
                   >
-                    <FiBookmark className={isFav ? "text-hub-cyan" : ""} />
-                    {isFav ? "Saved" : "Favorite"}
+                    <FiHeart className={`h-5 w-5 ${isFav ? "fill-current text-hub-cyan" : ""}`} aria-hidden />
+                    {isFav ? "Saved" : "Save"}
                   </button>
                   <button
                     type="button"
